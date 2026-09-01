@@ -21,6 +21,7 @@ class ProfileAction:
     id: str
     title: str
     instruction: str
+    show_on_card: bool = False
 
 
 @dataclass(frozen=True)
@@ -136,10 +137,17 @@ class ProfileRepository:
                 action.id if action.id not in used_action_ids else new_id(),
                 action.title,
                 action.instruction,
+                action.show_on_card,
             )
             for action in imported.actions
         )
-        imported = DeckProfile(profile_id, imported.name, imported.context, actions)
+        imported = DeckProfile(
+            profile_id,
+            imported.name,
+            imported.context,
+            actions,
+            imported.title_field,
+        )
         self.save((*current.profiles, imported), current.assignments)
         return imported
 
@@ -225,6 +233,7 @@ def _profile_from_dict(raw: object) -> DeckProfile:
                 str(action["id"]),
                 str(action["title"]).strip(),
                 str(action["instruction"]).strip(),
+                action.get("show_on_card") is True,
             )
             for action in actions_raw
             if isinstance(action, dict)
@@ -244,6 +253,7 @@ def _profile_to_dict(profile: DeckProfile) -> dict[str, object]:
                 "id": action.id,
                 "title": action.title,
                 "instruction": action.instruction,
+                "show_on_card": action.show_on_card,
             }
             for action in profile.actions
         ],

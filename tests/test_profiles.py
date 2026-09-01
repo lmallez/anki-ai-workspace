@@ -71,6 +71,29 @@ class ProfileRepositoryTests(unittest.TestCase):
             )
             self.assertEqual(read_profile_file(legacy).title_field, "")
 
+    def test_card_shortcut_round_trips_and_legacy_actions_default_to_hidden(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository = ProfileRepository(directory)
+            shortcut = DeckProfile(
+                "kr",
+                "Korean",
+                "",
+                (ProfileAction("explain", "Explain", "Explain it.", True),),
+            )
+            repository.save((shortcut,), {})
+            self.assertTrue(
+                ProfileRepository(directory).load().profiles[0].actions[0].show_on_card
+            )
+
+            legacy = Path(directory) / "legacy-action.json"
+            legacy.write_text(
+                '{"schema_version": 1, "profile": {"id": "legacy", "name": "Legacy", "context": "", "actions": [{"id": "explain", "title": "Explain", "instruction": "Explain it."}]}}',
+                encoding="utf-8",
+            )
+            self.assertFalse(read_profile_file(legacy).actions[0].show_on_card)
+
     def test_nearest_parent_assignment_and_direct_override(self) -> None:
         data = ProfileRepositoryTests._data(
             (profile("parent"), profile("child", "Grammar")),

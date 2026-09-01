@@ -12,6 +12,9 @@ A deck inherits the nearest profile assigned to one of its parents. Renaming a
 deck keeps its direct assignment because assignments use Anki's internal deck
 IDs. Selecting a profile action sends its instruction automatically; Custom
 chat opens an empty composer while retaining the profile's answer context.
+Actions marked **Show as a shortcut on review cards** also appear as direct
+buttons beside the sparkle launcher. These buttons use the same inherited
+profile and action execution path as the action menu.
 
 `codex_executable` is the Codex CLI command or full path. It defaults to
 `codex`, so the add-on uses the version available on the user's PATH. The

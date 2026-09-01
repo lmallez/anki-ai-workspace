@@ -9,7 +9,7 @@ from aqt.qt import QApplication
 from .card_context import context_from_card, title_from_card
 from .codex_client import CodexErrorKind, CodexResult, RequestKind
 from .deck_profiles import deck_references, effective_profile
-from .profile_dialog import show_profile_dialog
+from .profile_dialog import add_profile_change_listener, show_profile_dialog
 from .profiles import DeckProfile
 from .request_coordinator import RequestHandle
 from .service import get_store
@@ -51,6 +51,20 @@ class ReviewerChatController:
         self._menu_open = False
         self._sessions: dict[str, ChatSession] = {}
         self._selected_conversation_id: str | None = None
+        add_profile_change_listener(self._on_profiles_changed)
+
+    def _on_profiles_changed(self) -> None:
+        """Refresh deck actions and card shortcuts immediately after profile Save."""
+
+        session = self._card_session(create=False)
+        if session is not None:
+            profile = self._effective_profile_for_current_card()
+            session.profile_context = profile.context if profile else ""
+        deck_session = self._deck_session(create=False)
+        if deck_session is not None:
+            profile = self._effective_profile_for_current_card()
+            deck_session.profile_context = profile.context if profile else ""
+        self._render()
 
     def on_card_shown(self, card, web) -> None:
         self._current_card, self._web = card, web
@@ -509,6 +523,8 @@ class ReviewerChatController:
             "workspace_open": self._open and session is not None,
             "menu_open": self._menu_open,
             "menu": self._menu_payload(),
+            "shortcuts": self._shortcut_payload(),
+            "shortcuts_pending": self._card_shortcuts_pending(),
             "sessions": self._sessions_payload(),
             "selected_conversation_id": session.conversation_id if session else None,
             "workspace_has_sessions": bool(self._sessions),
@@ -557,6 +573,20 @@ class ReviewerChatController:
             "has_profile": profile is not None,
             "deck_general_label": f"{self._deck_name(deck_id)} · General",
         }
+
+    def _shortcut_payload(self) -> list[dict[str, str]]:
+        profile = self._effective_profile_for_current_card()
+        if profile is None:
+            return []
+        return [
+            {"id": action.id, "title": action.title}
+            for action in profile.actions
+            if action.show_on_card
+        ]
+
+    def _card_shortcuts_pending(self) -> bool:
+        session = self._card_session(create=False)
+        return bool(session and self._is_busy(session))
 
     def _sessions_payload(self) -> list[dict[str, object]]:
         return [

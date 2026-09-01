@@ -86,6 +86,34 @@ class ReviewerWindowSourceTests(unittest.TestCase):
         self.assertIn("action:'open_deck_general'", self.source)
         self.assertIn("action:'select_action'", self.source)
 
+    def test_opted_in_actions_render_as_direct_card_shortcuts(self) -> None:
+        self.assertIn('id="anki-ai-workspace-shortcuts"', self.source)
+        self.assertIn("data.shortcuts.forEach", self.source)
+        self.assertIn("node.disabled=Boolean(data.shortcuts_pending)", self.source)
+        self.assertIn("placeShortcuts", self.source)
+
+    def test_shortcuts_use_one_compact_dark_toolbar(self) -> None:
+        self.assertIn("background:rgba(17,17,17,.94)!important", self.source)
+        self.assertIn("#anki-ai-workspace-shortcuts{position:fixed", self.source)
+        self.assertIn("left:64px;bottom:20px", self.source)
+        self.assertIn("height:34px", self.source)
+        self.assertIn("height:28px", self.source)
+        self.assertIn("color:#fff!important", self.source)
+        self.assertIn("background:transparent!important", self.source)
+
+    def test_profile_configuration_is_always_available_from_action_menu(self) -> None:
+        empty_profile = self.source.index("if(!data.menu.has_profile)")
+        configure = self.source.index("actions.append(button('Configure profiles…'")
+        general = self.source.index(
+            "actions.append(button(data.menu.deck_general_label"
+        )
+        divider = self.source.index("const managementDivider=document.createElement")
+        self.assertLess(empty_profile, configure)
+        self.assertLess(general, divider)
+        self.assertLess(divider, configure)
+        self.assertIn("anki-ai-workspace-management-divider", self.source)
+        self.assertNotIn("anki-ai-workspace-configure::before", self.source)
+
     def test_reduced_launcher_uses_independent_new_and_restore_buttons(self) -> None:
         self.assertIn("anki-ai-workspace-has-hidden-workspace", self.source)
         self.assertIn("anki-ai-workspace-restore-dot", self.source)
