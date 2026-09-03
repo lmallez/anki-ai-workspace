@@ -94,6 +94,7 @@ class ReviewerChatController:
             "open_custom": lambda: self.open_card_chat(focus_composer=True),
             "open_deck_general": self.open_deck_general,
             "configure_profiles": self.configure_profiles,
+            "configure_codex": self.configure_codex,
             "sync": self._render,
             "minimize": self.minimize,
             "close_workspace": self.close_workspace,
@@ -123,7 +124,12 @@ class ReviewerChatController:
     def configure_profiles(self) -> None:
         self._menu_open = False
         self._render()
-        show_profile_dialog()
+        show_profile_dialog("profiles")
+
+    def configure_codex(self) -> None:
+        self._menu_open = False
+        self._render()
+        show_profile_dialog("codex")
 
     def open_card_chat(self, *, focus_composer: bool = False) -> None:
         session = self._card_session(create=True)

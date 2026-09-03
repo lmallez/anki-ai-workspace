@@ -163,6 +163,11 @@ class CodexClient:
             ),
         )
 
+    def verify_executable(self) -> CodexResult:
+        """Verify that the configured command starts and identifies itself."""
+
+        return self._run_version()
+
     def ask(
         self,
         card_context: str,
@@ -311,7 +316,7 @@ class CodexClient:
                     text=True,
                     cwd=working_dir,
                     env=_codex_environment(self._executable),
-                    start_new_session=True,
+                    **_process_start_options(),
                 )
                 logger().info(
                     "codex process started stage=%s pid=%s",
@@ -442,18 +447,55 @@ def _stop_process(process: subprocess.Popen[str]) -> None:
 
     if process.poll() is not None:
         return
+    if os.name == "nt":
+        _stop_windows_process_tree(process)
+    else:
+        _stop_posix_process_group(process)
+    try:
+        process.communicate(timeout=2)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            process.kill()
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (AttributeError, OSError):
+                process.kill()
+        process.communicate()
+
+
+def _process_start_options() -> dict[str, int | bool]:
+    """Return subprocess options that isolate Codex on the current platform."""
+
+    if os.name == "nt":
+        return {
+            "creationflags": int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+        }
+    return {"start_new_session": True}
+
+
+def _stop_posix_process_group(process: subprocess.Popen[str]) -> None:
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except (AttributeError, OSError):
         process.terminate()
+
+
+def _stop_windows_process_tree(process: subprocess.Popen[str]) -> None:
+    """Terminate only Codex and its descendants on Windows."""
+
     try:
-        process.communicate(timeout=2)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except (AttributeError, OSError):
-            process.kill()
-        process.communicate()
+        completed = subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        if completed.returncode != 0:
+            process.terminate()
+    except (OSError, subprocess.TimeoutExpired):
+        process.terminate()
 
 
 def build_prompt(
@@ -630,7 +672,7 @@ def _codex_environment(executable: str) -> dict[str, str]:
     environment.pop("CODEX_API_KEY", None)
     executable_directory = str(Path(executable).expanduser().parent)
     existing_path = environment.get("PATH", "")
-    environment["PATH"] = ":".join(
+    environment["PATH"] = os.pathsep.join(
         part for part in (executable_directory, existing_path) if part
     )
     return environment
@@ -700,7 +742,7 @@ def _error(
         CodexErrorKind.EXECUTABLE_BROKEN: (
             "Codex CLI is incomplete. Run: npm install -g @openai/codex@latest"
         ),
-        CodexErrorKind.AUTH_REQUIRED: ("Codex is not signed in. Run: codex --login"),
+        CodexErrorKind.AUTH_REQUIRED: ("Codex is not signed in. Run: codex"),
         CodexErrorKind.TIMEOUT: "Codex took too long to respond. Please try again.",
         CodexErrorKind.USAGE_LIMIT: (
             "The current Codex usage limit was reached. Wait for it to reset and "

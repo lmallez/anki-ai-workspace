@@ -53,6 +53,8 @@ class ReviewerWindowSourceTests(unittest.TestCase):
         self.assertIn('id="anki-ai-workspace-connection-popover"', self.source)
         self.assertIn("anki-ai-workspace-assistant{align-self:stretch", self.source)
         self.assertIn("sendButton.textContent=pending?'■':'↑'", self.source)
+        self.assertIn('id="anki-ai-workspace-setup"', self.source)
+        self.assertIn("action:'configure_codex'", self.source)
 
     def test_pending_requests_show_animated_typing_and_keep_the_composer_editable(
         self,

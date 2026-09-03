@@ -37,6 +37,10 @@ subdecks inherit their parent profile by default.
 - Anki with add-on support
 - The Codex CLI installed and signed in
 
+The packaged add-on supports Windows, macOS, and Linux. After installing Codex,
+use **Tools → AI Workspace… → Codex** to select its executable, or type
+`codex` when it is available in Anki's PATH.
+
 The current release supports the Codex CLI only. It uses your locally saved
 Codex session, so no API key is required.
 
@@ -47,20 +51,30 @@ the Codex setup below.
 
 ## Set up Codex
 
+On first startup, AI Workspace shows a setup popup because no Codex executable
+is configured yet. Follow the [official Codex CLI guide](https://learn.chatgpt.com/docs/codex/cli),
+install Codex, run `codex` in a terminal, and sign in with your ChatGPT account.
+Then select and verify the executable in **Tools → AI Workspace… → Codex**.
+That tab keeps the complete setup guide, connection controls, and reply
+preferences together.
+
 Install Codex using its official documentation, then run:
 
 ```bash
 codex
 ```
 
-After completing sign-in, start Anki. AI Workspace checks the connection when
-you first open a chat and uses `codex` from your `PATH` by default.
+After completing sign-in, start Anki and select the installed Codex executable
+in **Tools → AI Workspace… → Codex**. The same page lets you choose response
+detail, reasoning effort for profile actions and custom questions, and the
+reply timeout. These are AI Workspace preferences; Codex account, updates, and
+global CLI configuration stay in Codex.
 
 ## Usage
 
 1. Review any card and select the sparkle button.
 2. Choose a profile action, or choose **Custom chat** to type a question.
-3. Open **Tools → AI Deck Profiles…** to create profiles and assign them to
+3. Open **Tools → AI Workspace…** to create profiles, assign them to
    decks.
 
 Profile exports contain only profile definitions. Deck assignments stay local

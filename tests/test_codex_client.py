@@ -18,6 +18,9 @@ from anki_ai_workspace.codex_client import (
     normalize_model_verbosity,
     normalize_reasoning_effort,
     prepare_prompt,
+    _codex_environment,
+    _process_start_options,
+    _stop_process,
 )
 
 
@@ -357,6 +360,84 @@ class CodexClientTests(unittest.TestCase):
         self.assertNotIn("OPENAI_API_KEY", observed_environment)
         self.assertNotIn("CODEX_API_KEY", observed_environment)
         self.assertTrue(observed_environment["PATH"].startswith("/custom/bin:"))
+
+    def test_windows_process_uses_a_windows_process_group(self) -> None:
+        with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+            options = _process_start_options()
+
+        self.assertNotIn("start_new_session", options)
+        self.assertIn("creationflags", options)
+
+    def test_windows_path_uses_the_platform_separator(self) -> None:
+        with patch("anki_ai_workspace.codex_client.os.pathsep", ";"):
+            environment = _codex_environment("/custom/codex")
+
+        self.assertTrue(environment["PATH"].startswith("/custom;"))
+
+    def test_windows_cancellation_terminates_only_the_codex_process_tree(self) -> None:
+        class RunningProcess(FakeProcess):
+            def __init__(self):
+                super().__init__(["codex"], returncode=None)
+                self.pid = 42
+                self.terminated = False
+
+            def terminate(self):
+                self.terminated = True
+                self.returncode = 1
+
+        process = RunningProcess()
+        with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+            with patch("anki_ai_workspace.codex_client.subprocess.run") as run:
+                run.return_value = subprocess.CompletedProcess(["taskkill"], 0)
+                _stop_process(process)
+
+        self.assertEqual(run.call_args.args[0], ["taskkill", "/PID", "42", "/T", "/F"])
+        self.assertFalse(process.terminated)
+
+    def test_windows_cancellation_falls_back_to_direct_termination(self) -> None:
+        class RunningProcess(FakeProcess):
+            def __init__(self):
+                super().__init__(["codex"], returncode=None)
+                self.pid = 42
+                self.terminated = False
+
+            def terminate(self):
+                self.terminated = True
+                self.returncode = 1
+
+        process = RunningProcess()
+        with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+            with patch(
+                "anki_ai_workspace.codex_client.subprocess.run",
+                side_effect=OSError,
+            ):
+                _stop_process(process)
+
+        self.assertTrue(process.terminated)
+
+    def test_failed_windows_tree_termination_falls_back_to_direct_termination(
+        self,
+    ) -> None:
+        class RunningProcess(FakeProcess):
+            def __init__(self):
+                super().__init__(["codex"], returncode=None)
+                self.pid = 42
+                self.terminated = False
+
+            def terminate(self):
+                self.terminated = True
+                self.returncode = 1
+
+        process = RunningProcess()
+        completed = subprocess.CompletedProcess(["taskkill"], 1)
+        with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+            with patch(
+                "anki_ai_workspace.codex_client.subprocess.run",
+                return_value=completed,
+            ):
+                _stop_process(process)
+
+        self.assertTrue(process.terminated)
 
     def test_copyable_diagnostic_never_contains_request_content(self) -> None:
         diagnostic = CodexDiagnostic(
