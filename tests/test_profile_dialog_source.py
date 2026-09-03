@@ -165,3 +165,9 @@ class ProfileDialogSourceTests(unittest.TestCase):
         section = self.source[export:picker]
         self.assertIn("self._open_file_dialog(", section)
         self.assertNotIn("self.accept()", section)
+
+    def test_deck_assignment_dialog_populates_profile_choices(self) -> None:
+        assignments = self.source.index("def _build_assignments_tab")
+        populate = self.source.index("self._populate_decks()", assignments)
+        refresh = self.source.index("self._refresh_assignment_options()", populate)
+        self.assertLess(populate, refresh)

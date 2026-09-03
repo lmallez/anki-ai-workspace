@@ -521,6 +521,7 @@ class ProfileDialog(QDialog):
         self.deck_tree.setColumnWidth(1, 230)
         layout.addWidget(self.deck_tree)
         self._populate_decks()
+        self._refresh_assignment_options()
         return tab
 
     def _show_deck_assignments(self) -> None:
