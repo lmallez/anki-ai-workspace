@@ -88,7 +88,7 @@ def _button_markup(bootstrap: dict[str, object]) -> str:
  <main id="anki-ai-workspace-turns"></main>
  <footer id="anki-ai-workspace-composer-shell">
   <textarea id="anki-ai-workspace-composer" rows="1" placeholder="Message…"></textarea>
-  <div id="anki-ai-workspace-connection"><button id="anki-ai-workspace-health" type="button" aria-label="AI connection status"><span></span></button><span id="anki-ai-workspace-connection-label"></span><aside id="anki-ai-workspace-connection-popover" hidden><strong>AI connection unavailable</strong><button id="anki-ai-workspace-retry" type="button">Retry connection</button><button id="anki-ai-workspace-copy" type="button">Copy diagnostic</button></aside></div>
+  <div id="anki-ai-workspace-connection"><button id="anki-ai-workspace-health" type="button" aria-label="AI connection status"><span></span></button><span id="anki-ai-workspace-connection-label"></span><aside id="anki-ai-workspace-connection-popover" hidden><strong>AI connection unavailable</strong><button id="anki-ai-workspace-setup" type="button">Set up Codex…</button><button id="anki-ai-workspace-retry" type="button">Retry connection</button><button id="anki-ai-workspace-copy" type="button">Copy diagnostic</button></aside></div>
   <button id="anki-ai-workspace-send" type="button" aria-label="Send message" title="Send message">↑</button>
  </footer>
  <button id="anki-ai-workspace-resize" type="button" aria-label="Resize chat window"></button>
@@ -161,6 +161,7 @@ def _button_markup(bootstrap: dict[str, object]) -> str:
  sessions.onclick=()=>selector.hidden=!selector.hidden;
  health.onclick=()=>{if(health.dataset.state==='unavailable')connectionPopover.hidden=!connectionPopover.hidden};
  q('#anki-ai-workspace-retry').onclick=()=>{connectionPopover.hidden=true;send({action:'retry'})};
+ q('#anki-ai-workspace-setup').onclick=()=>{connectionPopover.hidden=true;send({action:'configure_codex'})};
  q('#anki-ai-workspace-copy').onclick=()=>{connectionPopover.hidden=true;send({action:'copy_diagnostic'})};
  sendButton.onclick=()=>send({action:sendButton.textContent==='■'?'cancel':'send',message:composer.value});
  titlebar.addEventListener('pointerdown',event=>{if(event.target.closest('button,textarea'))return;begin('move',event,titlebar)});

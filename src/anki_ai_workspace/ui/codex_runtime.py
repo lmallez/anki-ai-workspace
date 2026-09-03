@@ -60,6 +60,12 @@ class AnkiCodexRuntime:
             return
         self._start_connection_check()
 
+    def reset_and_check_connection(self) -> None:
+        """Discard cached readiness after the configured executable changes."""
+
+        self._status = ConnectionStatus(ConnectionState.UNCHECKED)
+        self._start_connection_check()
+
     def submit_chat(
         self,
         card_context: str,
@@ -184,7 +190,7 @@ class AnkiCodexRuntime:
     def _client() -> CodexClient:
         config = mw.addonManager.getConfig("anki_ai_workspace") or {}
         return CodexClient(
-            config.get("codex_executable", "codex"),
+            str(config.get("codex_executable") or ""),
             timeout_seconds=config.get("codex_timeout_seconds", 90),
             preset_reasoning_effort=config.get(
                 "preset_reasoning_effort", DEFAULT_PRESET_REASONING_EFFORT
