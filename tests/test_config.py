@@ -8,7 +8,7 @@ class DefaultConfigTests(unittest.TestCase):
         path = Path(__file__).parents[1] / "src/anki_ai_workspace/config.json"
         config = json.loads(path.read_text(encoding="utf-8"))
 
-        self.assertEqual(config["codex_executable"], "codex")
+        self.assertNotIn("codex_executable", config)
         self.assertEqual(config["codex_timeout_seconds"], 90)
         self.assertEqual(config["preset_reasoning_effort"], "low")
         self.assertEqual(config["custom_reasoning_effort"], "medium")

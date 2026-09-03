@@ -60,12 +60,13 @@ class ProfileDialogSourceTests(unittest.TestCase):
         self.assertIn("Qt.ScrollBarPolicy.ScrollBarAsNeeded", self.source)
         self.assertIn("right_scroll.setWidget(right)", self.source)
 
-    def test_primary_actions_remain_in_a_fixed_top_toolbar(self) -> None:
-        toolbar = self.source.index("root.addLayout(toolbar, 0)")
-        tabs = self.source.index("root.addWidget(self.tabs, 1)")
-        resize = self.source.index("self._resize_to_available_screen()")
-        self.assertLess(toolbar, tabs)
-        self.assertLess(tabs, resize)
+    def test_primary_actions_live_inside_the_deck_profiles_page(self) -> None:
+        page = self.source.index("def _build_deck_profiles_page")
+        toolbar = self.source.index("layout.addLayout(toolbar)", page)
+        editor = self.source.index(
+            "layout.addWidget(self._build_profiles_tab(), 1)", page
+        )
+        self.assertLess(toolbar, editor)
         self.assertIn("toolbar.addWidget(self.save_button)", self.source)
 
     def test_successful_save_notifies_reviewer_listeners(self) -> None:
@@ -77,12 +78,86 @@ class ProfileDialogSourceTests(unittest.TestCase):
 
     def test_cancelled_file_picker_keeps_profile_editor_open(self) -> None:
         self.assertIn("def _open_file_dialog", self.source)
-        self.assertEqual(self.source.count("QFileDialog.Option.DontUseNativeDialog"), 2)
-        self.assertIn("dialog.finished.connect(finished)", self.source)
-        self.assertIn("dialog.open()", self.source)
-        self.assertNotIn("dialog.exec()", self.source)
+        self.assertEqual(self.source.count("QFileDialog.Option.DontUseNativeDialog"), 3)
+        open_dialog = self.source.index("def _open_file_dialog")
+        reject = self.source.index("def reject", open_dialog)
+        section = self.source[open_dialog:reject]
+        self.assertIn("dialog.finished.connect(finished)", section)
+        self.assertIn("dialog.open()", section)
+        self.assertNotIn("dialog.exec()", section)
         self.assertNotIn("QFileDialog.getOpenFileName", self.source)
         self.assertNotIn("QFileDialog.getSaveFileName", self.source)
+
+    def test_workspace_combines_profile_and_codex_configuration(self) -> None:
+        self.assertIn('self.setWindowTitle("AI Workspace")', self.source)
+        self.assertIn(
+            'self.workspace_tabs.addTab(self._build_deck_profiles_page(), "Deck Profiles")',
+            self.source,
+        )
+        self.assertIn(
+            'self.workspace_tabs.addTab(self._build_codex_tab(), "Codex")', self.source
+        )
+        self.assertNotIn("self.tabs.addTab(", self.source)
+        self.assertIn(
+            'self.assign_decks_button = QPushButton("Deck assignments…")', self.source
+        )
+        self.assertIn("def _show_deck_assignments", self.source)
+        self.assertIn('def show_profile_dialog(tab: str = "profiles")', self.source)
+
+    def test_codex_setup_browses_and_verifies_before_saving(self) -> None:
+        self.assertIn('self.browse_codex_button = QPushButton("Browse…")', self.source)
+        self.assertIn('self.verify_codex_button = QPushButton("Verify")', self.source)
+        self.assertIn(
+            'self.save_codex_button = QPushButton("Save settings")', self.source
+        )
+        self.assertIn("CodexClient(executable).verify_executable()", self.source)
+        self.assertIn('config["codex_executable"] = executable', self.source)
+        self.assertIn("get_runtime().reset_and_check_connection()", self.source)
+
+    def test_codex_tab_hides_setup_instructions_behind_help_button(self) -> None:
+        self.assertIn('self.codex_help_button = QPushButton("?")', self.source)
+        self.assertIn(
+            'self.codex_help_button.setToolTip("How to set up Codex")', self.source
+        )
+        self.assertIn(
+            "self.codex_help_button.clicked.connect(self._show_codex_setup_help)",
+            self.source,
+        )
+        self.assertIn("def _show_codex_setup_help", self.source)
+        self.assertIn("Open Codex CLI installation guide", self.source)
+        self.assertIn("Open a terminal, run codex", self.source)
+        self.assertIn("codex.exe, codex.cmd, or codex.bat", self.source)
+
+    def test_codex_tab_edits_existing_runtime_preferences(self) -> None:
+        self.assertIn('QGroupBox("How AI replies")', self.source)
+        self.assertIn("self.model_verbosity = _setting_combo", self.source)
+        self.assertIn("self.preset_reasoning_effort = _setting_combo", self.source)
+        self.assertIn("self.custom_reasoning_effort = _setting_combo", self.source)
+        self.assertIn("self.codex_timeout_seconds = QSpinBox()", self.source)
+        self.assertIn(
+            'config["model_verbosity"] = self.model_verbosity.currentData()',
+            self.source,
+        )
+        self.assertIn(
+            'config["preset_reasoning_effort"] = self.preset_reasoning_effort.currentData()',
+            self.source,
+        )
+        self.assertIn(
+            'config["custom_reasoning_effort"] = self.custom_reasoning_effort.currentData()',
+            self.source,
+        )
+        self.assertIn(
+            'config["codex_timeout_seconds"] = self.codex_timeout_seconds.value()',
+            self.source,
+        )
+
+    def test_startup_prompt_explains_installation_and_sign_in(self) -> None:
+        self.assertIn("def show_codex_startup_prompt()", self.source)
+        self.assertIn("Open Codex CLI guide", self.source)
+        self.assertIn("Run codex in a terminal and sign in", self.source)
+        self.assertIn(
+            "QDesktopServices.openUrl(QUrl(CODEX_CLI_GUIDE_URL))", self.source
+        )
 
     def test_export_completion_does_not_accept_the_profile_dialog(self) -> None:
         export = self.source.index("def _export_profile")
