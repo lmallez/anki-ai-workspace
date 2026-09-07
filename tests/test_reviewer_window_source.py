@@ -101,6 +101,12 @@ class ReviewerWindowSourceTests(unittest.TestCase):
         self.assertIn("color:#fff!important", self.source)
         self.assertIn("background:transparent!important", self.source)
 
+    def test_dark_mode_launcher_uses_the_toolbar_color_treatment(self) -> None:
+        self.assertIn(
+            ".nightMode #anki-ai-workspace-launcher button{width:34px!important;min-width:34px!important;max-width:34px!important;height:34px!important;min-height:34px!important;max-height:34px!important;background:#111!important;color:#fff!important}",
+            self.source,
+        )
+
     def test_profile_configuration_is_always_available_from_action_menu(self) -> None:
         empty_profile = self.source.index("if(!data.menu.has_profile)")
         configure = self.source.index("actions.append(button('Configure profiles…'")
