@@ -52,8 +52,10 @@ use **Tools → AI Workspace… → Codex** to select its executable, or type
 
 ## Set up Codex
 
-On first startup, AI Workspace shows a setup popup because no Codex executable
-is configured yet. Follow the [official Codex CLI guide](https://learn.chatgpt.com/docs/codex/cli),
+Once Anki has finished opening, AI Workspace shows a setup popup when no Codex
+executable is configured yet. You can defer it with **Not now** or permanently
+dismiss it with **Don’t show again**; the setup page remains available from
+**Tools → AI Workspace… → Codex**. Follow the [official Codex CLI guide](https://learn.chatgpt.com/docs/codex/cli),
 install Codex, run `codex` in a terminal, and sign in with your ChatGPT account.
 Then select and verify the executable in **Tools → AI Workspace… → Codex**.
 That tab keeps the complete setup guide, connection controls, and reply
@@ -116,6 +118,11 @@ make build VERSION=0.1.0
 Use `make install VERSION=0.1.0` to install a source build locally. The archive
 is written to `dist/anki_ai_workspace.ankiaddon`. See the
 [configuration reference](src/anki_ai_workspace/config.md) for advanced options.
+
+To reinstall with the add-on's settings reset to their packaged defaults, close
+Anki and run `./install.sh --clean 0.1.0`. This preserves `user_files` such as
+your profiles and deck assignments, and does not modify your Codex installation
+or skills.
 
 ## Contributing
 

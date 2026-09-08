@@ -51,8 +51,10 @@ the Codex setup below.
 
 ## Set up Codex
 
-On first startup, AI Workspace shows a setup popup because no Codex executable
-is configured yet. Follow the [official Codex CLI guide](https://learn.chatgpt.com/docs/codex/cli),
+Once Anki has finished opening, AI Workspace shows a setup popup when no Codex
+executable is configured yet. You can defer it with **Not now** or permanently
+dismiss it with **Don’t show again**; the setup page remains available from
+**Tools → AI Workspace… → Codex**. Follow the [official Codex CLI guide](https://learn.chatgpt.com/docs/codex/cli),
 install Codex, run `codex` in a terminal, and sign in with your ChatGPT account.
 Then select and verify the executable in **Tools → AI Workspace… → Codex**.
 That tab keeps the complete setup guide, connection controls, and reply

@@ -93,6 +93,10 @@ def show_codex_startup_prompt() -> None:
 
     prompt = CodexStartupDialog(mw)
     prompt.exec()
+    if prompt.dismiss_permanently:
+        config = mw.addonManager.getConfig("anki_ai_workspace") or {}
+        config["codex_setup_prompt_dismissed"] = True
+        mw.addonManager.writeConfig("anki_ai_workspace", config)
     if prompt.open_setup:
         show_profile_dialog("codex")
 
@@ -103,6 +107,7 @@ class CodexStartupDialog(QDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.open_setup = False
+        self.dismiss_permanently = False
         self.setWindowTitle("Connect Codex")
         self.setModal(True)
         self.setMinimumWidth(460)
@@ -182,10 +187,18 @@ class CodexStartupDialog(QDialog):
         later_button.setObjectName("codex-setup-later")
         later_button.clicked.connect(self.reject)
         root.addWidget(later_button)
+        never_button = QPushButton("Don’t show again")
+        never_button.setObjectName("codex-setup-later")
+        never_button.clicked.connect(self._dismiss_permanently)
+        root.addWidget(never_button)
 
     def _open_setup(self) -> None:
         self.open_setup = True
         self.accept()
+
+    def _dismiss_permanently(self) -> None:
+        self.dismiss_permanently = True
+        self.reject()
 
 
 def _codex_setup_step(number: str, title: str, copy: str) -> QWidget:

@@ -10,6 +10,7 @@ VALID_ACTIONS = {
     "open_deck_general",
     "select_action",
     "configure_profiles",
+    "configure_codex",
     "sync",
     "minimize",
     "close_workspace",

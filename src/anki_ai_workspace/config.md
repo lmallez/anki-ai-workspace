@@ -16,8 +16,8 @@ Actions marked **Show as a shortcut on review cards** also appear as direct
 buttons beside the sparkle launcher. These buttons use the same inherited
 profile and action execution path as the action menu.
 
-`codex_executable` is initially unset. On startup, the add-on explains how to
-install and sign in to Codex, then lets you select a command or full path in
+`codex_executable` is initially unset. Once Anki has finished opening, the
+add-on explains how to install and sign in to Codex, then lets you select a command or full path in
 the **Codex** tab. The add-on uses the account signed in through that CLI and
 does not use an API key.
 
@@ -27,6 +27,10 @@ terminal, and lets you browse to an already-installed executable, verify it
 with `--version`, and save it. It does not scan for, install, or download
 Codex. On Windows, select `codex.exe`, `codex.cmd`, or `codex.bat`; on macOS
 and Linux, select `codex`.
+
+To reset the add-on's local settings to their packaged defaults during a source
+reinstall, close Anki and run `./install.sh --clean <version>`. This preserves
+the add-on's `user_files` and does not modify Codex or its skills.
 
 For setup, open the [official Codex CLI guide](https://learn.chatgpt.com/docs/codex/cli),
 install Codex, then run `codex` in a terminal and sign in before selecting its

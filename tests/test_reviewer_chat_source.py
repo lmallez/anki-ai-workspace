@@ -78,6 +78,14 @@ class ReviewerChatSourceTests(unittest.TestCase):
         self.assertIn('return "connected"', self.source)
         self.assertIn('return "unavailable"', self.source)
 
+    def test_unavailable_connection_keeps_the_action_card_with_an_error_card(
+        self,
+    ) -> None:
+        self.assertIn('"error": True', self.source)
+        self.assertIn("def _connection_error_message", self.source)
+        self.assertIn("Codex is not set up. Configure Codex", self.source)
+        self.assertIn("session.automatic_action_title is not None", self.source)
+
     def test_bootstrap_builds_state_without_rendering_the_outgoing_webview(
         self,
     ) -> None:

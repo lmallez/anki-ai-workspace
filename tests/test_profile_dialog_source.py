@@ -159,6 +159,13 @@ class ProfileDialogSourceTests(unittest.TestCase):
             "QDesktopServices.openUrl(QUrl(CODEX_CLI_GUIDE_URL))", self.source
         )
 
+    def test_startup_prompt_can_be_permanently_dismissed(self) -> None:
+        self.assertIn('QPushButton("Not now")', self.source)
+        self.assertIn('QPushButton("Don’t show again")', self.source)
+        self.assertIn("self.dismiss_permanently = False", self.source)
+        self.assertIn("def _dismiss_permanently", self.source)
+        self.assertIn('config["codex_setup_prompt_dismissed"] = True', self.source)
+
     def test_export_completion_does_not_accept_the_profile_dialog(self) -> None:
         export = self.source.index("def _export_profile")
         picker = self.source.index("def _open_file_dialog", export)

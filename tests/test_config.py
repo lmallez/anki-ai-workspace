@@ -9,6 +9,7 @@ class DefaultConfigTests(unittest.TestCase):
         config = json.loads(path.read_text(encoding="utf-8"))
 
         self.assertNotIn("codex_executable", config)
+        self.assertFalse(config["codex_setup_prompt_dismissed"])
         self.assertEqual(config["codex_timeout_seconds"], 90)
         self.assertEqual(config["preset_reasoning_effort"], "low")
         self.assertEqual(config["custom_reasoning_effort"], "medium")

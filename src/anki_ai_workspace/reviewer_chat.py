@@ -519,7 +519,14 @@ class ReviewerChatController:
                         "role": "user",
                         "text": session.automatic_action_title,
                         "presentation": "action",
-                        "state": "queued",
+                    }
+                )
+            if session.last_connection_result and not session.connection_ready:
+                turns.append(
+                    {
+                        "role": "assistant",
+                        "error": True,
+                        "text": self._connection_error_message(session),
                     }
                 )
             if self._is_busy(session):
@@ -562,6 +569,17 @@ class ReviewerChatController:
         if session.last_connection_result is not None:
             return "unavailable"
         return "checking"
+
+    @staticmethod
+    def _connection_error_message(session: ChatSession) -> str:
+        result = session.last_connection_result
+        if result and result.error_kind in {
+            CodexErrorKind.EXECUTABLE_NOT_FOUND,
+            CodexErrorKind.EXECUTABLE_BROKEN,
+            CodexErrorKind.AUTH_REQUIRED,
+        }:
+            return "Codex is not set up. Configure Codex to use AI Workspace."
+        return (result.error_message if result else None) or "Codex is unavailable."
 
     def _menu_payload(self) -> dict[str, object]:
         profile = self._effective_profile_for_current_card()
