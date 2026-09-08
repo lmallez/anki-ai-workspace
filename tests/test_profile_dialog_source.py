@@ -117,7 +117,9 @@ class ProfileDialogSourceTests(unittest.TestCase):
         self.assertIn("future.result()", self.source)
         self.assertIn("self._verify_codex(save_after=True)", self.source)
         self.assertIn('config["codex_executable"] = executable', self.source)
-        self.assertIn("get_runtime().reset_and_check_connection()", self.source)
+        self.assertIn("get_runtime().reset_and_check_connection(", self.source)
+        self.assertIn("self._finish_saved_codex_connection", self.source)
+        self.assertIn("def _finish_saved_codex_connection", self.source)
 
     def test_codex_tab_hides_setup_instructions_behind_help_button(self) -> None:
         self.assertIn('self.codex_help_button = QPushButton("?")', self.source)

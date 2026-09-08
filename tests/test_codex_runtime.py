@@ -32,8 +32,9 @@ class CodexRuntimeTests(unittest.TestCase):
         runtime._start_request = started.append
         runtime._client = lambda: SimpleNamespace(check_connection=lambda: None)
         runtime.add_status_listener(statuses.append)
+        completion_statuses = []
 
-        runtime.reset_and_check_connection()
+        runtime.reset_and_check_connection(completion_statuses.append)
         first = started[-1]
         runtime.reset_and_check_connection()
 
@@ -52,3 +53,6 @@ class CodexRuntimeTests(unittest.TestCase):
 
         self.assertEqual(statuses[-1].state, runtime_module.ConnectionState.NEEDS_SETUP)
         self.assertEqual(statuses[-1].result.error_message, "Not Codex")
+        self.assertEqual(
+            completion_statuses[-1].state, runtime_module.ConnectionState.NEEDS_SETUP
+        )

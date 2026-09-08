@@ -55,7 +55,7 @@ from .profiles import (
     validate_profiles,
     write_profile_file,
 )
-from .ui.codex_runtime import get_runtime
+from .ui.codex_runtime import ConnectionState, ConnectionStatus, get_runtime
 
 USER_ROLE = Qt.ItemDataRole.UserRole
 CODEX_CLI_GUIDE_URL = "https://learn.chatgpt.com/docs/codex/cli"
@@ -790,10 +790,23 @@ class ProfileDialog(QDialog):
         self._saved_codex_executable = executable
         self.save_codex_button.setEnabled(True)
         if connection_changed:
-            get_runtime().reset_and_check_connection()
+            get_runtime().reset_and_check_connection(
+                self._finish_saved_codex_connection
+            )
             self.codex_status.setText("Saved. Checking your Codex sign-in…")
             return
         self.codex_status.setText("Settings saved. New replies will use them.")
+
+    def _finish_saved_codex_connection(self, status: ConnectionStatus) -> None:
+        if status.state == ConnectionState.CHECKING:
+            return
+        if status.state == ConnectionState.READY:
+            self.codex_status.setText("Saved. Codex is ready.")
+            return
+        self.codex_status.setText(
+            (status.result.error_message if status.result else None)
+            or "Codex could not be connected."
+        )
 
     def _populate_decks(self) -> None:
         self.deck_tree.clear()

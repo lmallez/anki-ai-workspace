@@ -68,9 +68,13 @@ class AnkiCodexRuntime:
             return
         self._start_connection_check()
 
-    def reset_and_check_connection(self) -> None:
+    def reset_and_check_connection(
+        self, listener: Callable[[ConnectionStatus], None] | None = None
+    ) -> None:
         """Discard cached readiness after the configured executable changes."""
 
+        if listener is not None:
+            self._connection_listeners.append(listener)
         self._status = ConnectionStatus(ConnectionState.UNCHECKED)
         self._start_connection_check()
 

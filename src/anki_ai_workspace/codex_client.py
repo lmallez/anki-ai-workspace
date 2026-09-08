@@ -26,7 +26,9 @@ DEFAULT_CUSTOM_REASONING_EFFORT = "medium"
 DEFAULT_MODEL_VERBOSITY = "low"
 VALID_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high", "xhigh"})
 VALID_MODEL_VERBOSITIES = frozenset({"low", "medium", "high"})
-CODEX_VERSION_MARKER = re.compile(r"\bcodex(?:-cli)?\b", re.IGNORECASE)
+CODEX_VERSION_MARKER = re.compile(
+    r"^codex-cli\s+\d+(?:\.\d+)+(?:[-+][0-9A-Za-z.-]+)?$", re.IGNORECASE
+)
 
 
 class RequestKind(str, Enum):

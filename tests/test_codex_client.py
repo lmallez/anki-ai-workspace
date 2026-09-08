@@ -312,7 +312,7 @@ class CodexClientTests(unittest.TestCase):
             calls.append({"args": args, "kwargs": kwargs})
             if args[0][-1] == "--version":
                 return subprocess.CompletedProcess(
-                    args[0], 0, stdout="codex 1.0", stderr=""
+                    args[0], 0, stdout="codex-cli 1.0", stderr=""
                 )
             return subprocess.CompletedProcess(args[0], 0, stdout="OK", stderr="")
 
@@ -366,6 +366,17 @@ class CodexClientTests(unittest.TestCase):
             result.error_message, "The configured executable is not the Codex CLI."
         )
         self.assertEqual(result.diagnostic.codex_version, "other-tool 1.0")
+
+    def test_verify_executable_rejects_an_ambiguous_codex_reference(self) -> None:
+        completed = subprocess.CompletedProcess(
+            ["other-tool", "--version"], 0, stdout="not Codex\n", stderr=""
+        )
+        with patch(
+            "anki_ai_workspace.codex_client.subprocess.run", return_value=completed
+        ):
+            result = CodexClient("other-tool").verify_executable()
+
+        self.assertEqual(result.error_kind, CodexErrorKind.EXECUTABLE_BROKEN)
 
     def test_api_key_environment_variables_are_not_forwarded(self) -> None:
         client = CodexClient("/custom/bin/codex")
