@@ -106,20 +106,23 @@ class ProfileDialogSourceTests(unittest.TestCase):
 
     def test_codex_setup_browses_and_verifies_before_saving(self) -> None:
         self.assertIn('self.browse_codex_button = QPushButton("Browse…")', self.source)
+        self.assertIn('self.find_codex_button = QPushButton("Find")', self.source)
         self.assertIn('self.verify_codex_button = QPushButton("Verify")', self.source)
         self.assertIn(
             'self.save_codex_button = QPushButton("Save settings")', self.source
         )
-        self.assertIn("CodexClient(executable).verify_executable()", self.source)
+        self.assertIn("lambda: CodexClient(executable).check_connection()", self.source)
+        self.assertIn("find_codex_executable", self.source)
+        self.assertIn("def _find_codex", self.source)
+        self.assertIn("def _finish_codex_discovery", self.source)
         self.assertIn("mw.taskman.run_in_background(", self.source)
         self.assertIn("uses_collection=False", self.source)
         self.assertIn("def _finish_codex_verification", self.source)
         self.assertIn("future.result()", self.source)
-        self.assertIn("self._verify_codex(save_after=True)", self.source)
         self.assertIn('config["codex_executable"] = executable', self.source)
-        self.assertIn("get_runtime().reset_and_check_connection(", self.source)
-        self.assertIn("self._finish_saved_codex_connection", self.source)
-        self.assertIn("def _finish_saved_codex_connection", self.source)
+        self.assertIn("Verify Codex and its sign-in before saving.", self.source)
+        self.assertIn("get_runtime().adopt_verified_connection", self.source)
+        self.assertNotIn("get_runtime().reset_and_check_connection(", self.source)
 
     def test_codex_tab_hides_setup_instructions_behind_help_button(self) -> None:
         self.assertIn('self.codex_help_button = QPushButton("?")', self.source)

@@ -78,6 +78,16 @@ class AnkiCodexRuntime:
         self._status = ConnectionStatus(ConnectionState.UNCHECKED)
         self._start_connection_check()
 
+    def adopt_verified_connection(self, result: CodexResult) -> None:
+        """Publish a newly saved, already verified Codex connection."""
+
+        if not result.succeeded:
+            raise ValueError("A verified Codex result is required.")
+        self._connection_generation += 1
+        self._status = ConnectionStatus(ConnectionState.READY, result)
+        self._notify_connection_listeners()
+        self._notify_status_listeners()
+
     def submit_chat(
         self,
         card_context: str,

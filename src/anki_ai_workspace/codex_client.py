@@ -107,6 +107,28 @@ class CodexResult:
         return self.error_kind is None and self.text is not None
 
 
+def find_codex_executable() -> str | None:
+    """Return the first Codex executable found on the current PATH."""
+
+    command = ["where", "codex"] if os.name == "nt" else ["which", "codex"]
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=VERSION_TIMEOUT_SECONDS,
+            env=_codex_lookup_environment(),
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    return next(
+        (line.strip() for line in completed.stdout.splitlines() if line.strip()), None
+    )
+
+
 class CodexClient:
     """Small, stateless bridge to the user's locally authenticated Codex CLI."""
 
@@ -680,6 +702,19 @@ def normalize_model_verbosity(value: object) -> str:
 
 def _connection_test_prompt() -> str:
     return 'Reply exactly with "OK".'
+
+
+def _codex_lookup_environment() -> dict[str, str]:
+    """Return a PATH that also works when Anki starts outside a shell."""
+
+    environment = os.environ.copy()
+    if os.name == "nt":
+        return environment
+
+    existing_path = environment.get("PATH", "")
+    search_paths = ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", existing_path)
+    environment["PATH"] = os.pathsep.join(path for path in search_paths if path)
+    return environment
 
 
 def _codex_environment(executable: str) -> dict[str, str]:

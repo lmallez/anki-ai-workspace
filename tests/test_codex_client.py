@@ -15,6 +15,7 @@ from anki_ai_workspace.codex_client import (
     CodexErrorKind,
     RequestKind,
     build_prompt,
+    find_codex_executable,
     normalize_model_verbosity,
     normalize_reasoning_effort,
     prepare_prompt,
@@ -377,6 +378,47 @@ class CodexClientTests(unittest.TestCase):
             result = CodexClient("other-tool").verify_executable()
 
         self.assertEqual(result.error_kind, CodexErrorKind.EXECUTABLE_BROKEN)
+
+    def test_find_codex_executable_uses_where_on_windows(self) -> None:
+        completed = subprocess.CompletedProcess(
+            ["where", "codex"],
+            0,
+            stdout="C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd\n"
+            "C:\\Users\\me\\AppData\\Roaming\\npm\\codex\n",
+            stderr="",
+        )
+        with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+            with patch(
+                "anki_ai_workspace.codex_client.subprocess.run", return_value=completed
+            ) as run:
+                executable = find_codex_executable()
+
+        self.assertEqual(executable, "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd")
+        self.assertEqual(run.call_args.args[0], ["where", "codex"])
+
+    def test_find_codex_executable_uses_which_on_posix(self) -> None:
+        with patch("anki_ai_workspace.codex_client.os.name", "posix"):
+            with patch(
+                "anki_ai_workspace.codex_client.subprocess.run",
+                return_value=subprocess.CompletedProcess(
+                    ["which", "codex"],
+                    0,
+                    stdout="\n/usr/local/bin/codex\n",
+                    stderr="",
+                ),
+            ) as run:
+                executable = find_codex_executable()
+
+        self.assertEqual(executable, "/usr/local/bin/codex")
+        self.assertEqual(run.call_args.args[0], ["which", "codex"])
+        self.assertIn("/opt/homebrew/bin", run.call_args.kwargs["env"]["PATH"])
+
+    def test_find_codex_executable_handles_lookup_failures(self) -> None:
+        with patch(
+            "anki_ai_workspace.codex_client.subprocess.run",
+            side_effect=OSError,
+        ):
+            self.assertIsNone(find_codex_executable())
 
     def test_api_key_environment_variables_are_not_forwarded(self) -> None:
         client = CodexClient("/custom/bin/codex")

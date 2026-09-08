@@ -42,6 +42,8 @@ from .codex_client import (
     DEFAULT_PRESET_REASONING_EFFORT,
     DEFAULT_TIMEOUT_SECONDS,
     CodexClient,
+    CodexResult,
+    find_codex_executable,
     normalize_model_verbosity,
     normalize_reasoning_effort,
 )
@@ -55,7 +57,7 @@ from .profiles import (
     validate_profiles,
     write_profile_file,
 )
-from .ui.codex_runtime import ConnectionState, ConnectionStatus, get_runtime
+from .ui.codex_runtime import get_runtime
 
 USER_ROLE = Qt.ItemDataRole.UserRole
 CODEX_CLI_GUIDE_URL = "https://learn.chatgpt.com/docs/codex/cli"
@@ -281,7 +283,9 @@ class ProfileDialog(QDialog):
         self._file_dialog: QFileDialog | None = None
         self._codex_file_dialog: QFileDialog | None = None
         self._verified_executable: str | None = None
+        self._verified_connection: CodexResult | None = None
         self._codex_verification_in_progress = False
+        self._codex_discovery_in_progress = False
         self._saved_codex_executable = ""
         self._assignment_dialog: QDialog | None = None
         self._deck_rows: dict[str, tuple[QComboBox, QLabel, DeckReference]] = {}
@@ -600,8 +604,11 @@ class ProfileDialog(QDialog):
         self.codex_executable = QLineEdit(self._saved_codex_executable)
         self.codex_executable.setPlaceholderText("Choose a Codex executable…")
         self.browse_codex_button = QPushButton("Browse…")
+        self.find_codex_button = QPushButton("Find")
         self.browse_codex_button.setMinimumHeight(32)
+        self.find_codex_button.setMinimumHeight(32)
         executable_row.addWidget(self.codex_executable, 1)
+        executable_row.addWidget(self.find_codex_button)
         executable_row.addWidget(self.browse_codex_button)
         form = QFormLayout()
         self._configure_form(form)
@@ -669,6 +676,7 @@ class ProfileDialog(QDialog):
         scroll.setWidget(content)
 
         self.browse_codex_button.clicked.connect(self._browse_codex)
+        self.find_codex_button.clicked.connect(self._find_codex)
         self.verify_codex_button.clicked.connect(self._verify_codex)
         self.save_codex_button.clicked.connect(self._save_codex)
         self.codex_help_button.clicked.connect(self._show_codex_setup_help)
@@ -713,13 +721,43 @@ class ProfileDialog(QDialog):
         dialog.finished.connect(finished)
         dialog.open()
 
+    def _find_codex(self) -> None:
+        if self._codex_discovery_in_progress or self._codex_verification_in_progress:
+            return
+        self._codex_discovery_in_progress = True
+        self.find_codex_button.setEnabled(False)
+        self.browse_codex_button.setEnabled(False)
+        self.codex_status.setText("Looking for Codex in PATH…")
+        mw.taskman.run_in_background(
+            find_codex_executable,
+            on_done=self._finish_codex_discovery,
+            uses_collection=False,
+        )
+
+    def _finish_codex_discovery(self, future) -> None:
+        self._codex_discovery_in_progress = False
+        self.find_codex_button.setEnabled(True)
+        self.browse_codex_button.setEnabled(True)
+        try:
+            executable = future.result()
+        except Exception:
+            executable = None
+        if executable:
+            self.codex_executable.setText(executable)
+            self.codex_status.setText("Codex found. Verify it before saving.")
+            return
+        self.codex_status.setText(
+            "Codex was not found in PATH. Use Browse… or update your PATH."
+        )
+
     def _codex_executable_changed(self, _text: str) -> None:
         self._verified_executable = None
+        self._verified_connection = None
         executable = self.codex_executable.text().strip()
         self.save_codex_button.setEnabled(executable == self._saved_codex_executable)
         self.codex_status.setText("Select an executable, then verify it.")
 
-    def _verify_codex(self, *, save_after: bool = False) -> None:
+    def _verify_codex(self) -> None:
         if self._codex_verification_in_progress:
             return
         executable = self.codex_executable.text().strip()
@@ -729,23 +767,23 @@ class ProfileDialog(QDialog):
         self._codex_verification_in_progress = True
         self.codex_executable.setReadOnly(True)
         self.browse_codex_button.setEnabled(False)
+        self.find_codex_button.setEnabled(False)
         self.verify_codex_button.setEnabled(False)
         self.save_codex_button.setEnabled(False)
         self.codex_status.setText("Verifying Codex…")
         mw.taskman.run_in_background(
-            lambda: CodexClient(executable).verify_executable(),
+            lambda: CodexClient(executable).check_connection(),
             on_done=lambda future, current=executable: self._finish_codex_verification(
-                future, current, save_after
+                future, current
             ),
             uses_collection=False,
         )
 
-    def _finish_codex_verification(
-        self, future, executable: str, save_after: bool
-    ) -> None:
+    def _finish_codex_verification(self, future, executable: str) -> None:
         self._codex_verification_in_progress = False
         self.codex_executable.setReadOnly(False)
         self.browse_codex_button.setEnabled(True)
+        self.find_codex_button.setEnabled(True)
         self.verify_codex_button.setEnabled(True)
         try:
             result = future.result()
@@ -769,16 +807,17 @@ class ProfileDialog(QDialog):
             )
             return
         self._verified_executable = executable
+        self._verified_connection = result
         self.save_codex_button.setEnabled(True)
-        self.codex_status.setText(result.text or "Codex executable verified.")
-        if save_after:
-            self._save_codex()
+        self.codex_status.setText("Codex is ready. Save settings to use it.")
 
     def _save_codex(self) -> None:
         executable = self.codex_executable.text().strip()
         connection_changed = executable != self._saved_codex_executable
-        if connection_changed and executable != self._verified_executable:
-            self._verify_codex(save_after=True)
+        if connection_changed and (
+            executable != self._verified_executable or self._verified_connection is None
+        ):
+            self.codex_status.setText("Verify Codex and its sign-in before saving.")
             return
         config = mw.addonManager.getConfig("anki_ai_workspace") or {}
         config["codex_executable"] = executable
@@ -790,23 +829,10 @@ class ProfileDialog(QDialog):
         self._saved_codex_executable = executable
         self.save_codex_button.setEnabled(True)
         if connection_changed:
-            get_runtime().reset_and_check_connection(
-                self._finish_saved_codex_connection
-            )
-            self.codex_status.setText("Saved. Checking your Codex sign-in…")
-            return
-        self.codex_status.setText("Settings saved. New replies will use them.")
-
-    def _finish_saved_codex_connection(self, status: ConnectionStatus) -> None:
-        if status.state == ConnectionState.CHECKING:
-            return
-        if status.state == ConnectionState.READY:
+            get_runtime().adopt_verified_connection(self._verified_connection)
             self.codex_status.setText("Saved. Codex is ready.")
             return
-        self.codex_status.setText(
-            (status.result.error_message if status.result else None)
-            or "Codex could not be connected."
-        )
+        self.codex_status.setText("Settings saved. New replies will use them.")
 
     def _populate_decks(self) -> None:
         self.deck_tree.clear()
