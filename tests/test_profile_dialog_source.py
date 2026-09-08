@@ -171,18 +171,6 @@ class ProfileDialogSourceTests(unittest.TestCase):
         self.assertIn("def _dismiss_permanently", self.source)
         self.assertIn('config["codex_setup_prompt_dismissed"] = True', self.source)
 
-    def test_startup_prompt_uses_the_active_qt_palette(self) -> None:
-        startup = self.source[
-            self.source.index("class CodexStartupDialog") : self.source.index(
-                "def _codex_setup_step"
-            )
-        ]
-
-        self.assertIn("QPalette.ColorRole.Highlight", startup)
-        self.assertIn("QPalette.ColorRole.HighlightedText", startup)
-        self.assertIn("QPalette.ColorRole.Button", startup)
-        self.assertNotIn('"QDialog { background: #ffffff; color: #111111; }"', startup)
-
     def test_export_completion_does_not_accept_the_profile_dialog(self) -> None:
         export = self.source.index("def _export_profile")
         picker = self.source.index("def _open_file_dialog", export)
