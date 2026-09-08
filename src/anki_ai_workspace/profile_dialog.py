@@ -21,6 +21,7 @@ from aqt.qt import (
     QLineEdit,
     QListWidget,
     QMessageBox,
+    QPalette,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -111,29 +112,31 @@ class CodexStartupDialog(QDialog):
         self.setWindowTitle("Connect Codex")
         self.setModal(True)
         self.setMinimumWidth(460)
+        palette = self.palette()
+        muted = palette.color(QPalette.ColorRole.Mid).name()
+        surface = palette.color(QPalette.ColorRole.Button).name()
+        border = palette.color(QPalette.ColorRole.Midlight).name()
+        accent = palette.color(QPalette.ColorRole.Highlight).name()
+        accent_text = palette.color(QPalette.ColorRole.HighlightedText).name()
         self.setStyleSheet(
-            "QDialog { background: #ffffff; color: #111111; }"
-            "#codex-setup-mark { background: #111111; border-radius: 22px; "
-            "color: #ffffff; font-size: 22px; font-weight: 700; }"
-            "#codex-setup-eyebrow { color: #737373; font-size: 11px; "
+            f"#codex-setup-mark {{ background: {accent}; color: {accent_text}; "
+            "border-radius: 22px; font-size: 22px; font-weight: 700; }"
+            f"#codex-setup-eyebrow {{ color: {muted}; font-size: 11px; "
             "font-weight: 700; letter-spacing: 1.2px; }"
             "#codex-setup-title { font-size: 25px; font-weight: 700; }"
-            "#codex-setup-copy { color: #5f5f5f; font-size: 14px; line-height: 1.45; }"
-            "#codex-setup-steps { background: #f7f7f7; border: 1px solid #e8e8e8; "
+            f"#codex-setup-copy {{ color: {muted}; font-size: 14px; line-height: 1.45; }}"
+            f"#codex-setup-steps {{ background: {surface}; border: 1px solid {border}; "
             "border-radius: 14px; }"
-            "#codex-setup-step-number { color: #888888; font-size: 11px; "
+            f"#codex-setup-step-number {{ color: {muted}; font-size: 11px; "
             "font-weight: 700; }"
             "#codex-setup-step-title { font-size: 14px; font-weight: 700; }"
-            "#codex-setup-step-copy { color: #666666; font-size: 12px; }"
+            f"#codex-setup-step-copy {{ color: {muted}; font-size: 12px; }}"
             "#codex-setup-primary { min-height: 42px; border: 0; border-radius: 10px; "
-            "background: #111111; color: #ffffff; font-size: 14px; font-weight: 700; }"
-            "#codex-setup-primary:hover { background: #2a2a2a; }"
-            "#codex-setup-guide { min-height: 34px; border: 0; background: transparent; "
-            "color: #444444; font-size: 13px; font-weight: 600; }"
-            "#codex-setup-guide:hover { color: #111111; text-decoration: underline; }"
-            "#codex-setup-later { border: 0; background: transparent; color: #888888; "
-            "font-size: 12px; }"
-            "#codex-setup-later:hover { color: #444444; }"
+            f"background: {accent}; color: {accent_text}; font-size: 14px; font-weight: 700; }}"
+            "#codex-setup-guide { min-height: 34px; border: 0; font-size: 13px; "
+            "font-weight: 600; }"
+            "#codex-setup-guide:hover { text-decoration: underline; }"
+            f"#codex-setup-later {{ border: 0; color: {muted}; font-size: 12px; }}"
         )
 
         root = QVBoxLayout(self)

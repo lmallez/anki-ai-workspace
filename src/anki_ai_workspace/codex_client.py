@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 import os
 from pathlib import Path
+import re
 import signal
 import subprocess
 import tempfile
@@ -25,6 +26,7 @@ DEFAULT_CUSTOM_REASONING_EFFORT = "medium"
 DEFAULT_MODEL_VERBOSITY = "low"
 VALID_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high", "xhigh"})
 VALID_MODEL_VERBOSITIES = frozenset({"low", "medium", "high"})
+CODEX_VERSION_MARKER = re.compile(r"\bcodex(?:-cli)?\b", re.IGNORECASE)
 
 
 class RequestKind(str, Enum):
@@ -133,7 +135,7 @@ class CodexClient:
         """Verify the executable and saved CLI authentication with a tiny request."""
 
         logger().info("connection check started executable=%s", self._executable)
-        version_result = self._run_version()
+        version_result = self.verify_executable()
         if not version_result.succeeded:
             logger().info(
                 "connection version check failed kind=%s", version_result.error_kind
@@ -166,7 +168,19 @@ class CodexClient:
     def verify_executable(self) -> CodexResult:
         """Verify that the configured command starts and identifies itself."""
 
-        return self._run_version()
+        result = self._run_version()
+        if not result.succeeded:
+            return result
+        version = result.text or ""
+        if CODEX_VERSION_MARKER.search(version):
+            return result
+        return CodexResult(
+            error_kind=CodexErrorKind.EXECUTABLE_BROKEN,
+            error_message="The configured executable is not the Codex CLI.",
+            diagnostic=CodexDiagnostic(
+                "startup", self._executable, codex_version=version
+            ),
+        )
 
     def ask(
         self,

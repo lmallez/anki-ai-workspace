@@ -52,6 +52,7 @@ class ReviewerChatController:
         self._sessions: dict[str, ChatSession] = {}
         self._selected_conversation_id: str | None = None
         add_profile_change_listener(self._on_profiles_changed)
+        get_runtime().add_status_listener(self._on_runtime_connection_status)
 
     def _on_profiles_changed(self) -> None:
         """Refresh deck actions and card shortcuts immediately after profile Save."""
@@ -375,6 +376,12 @@ class ReviewerChatController:
                 status=(status.result.error_message if status.result else None)
                 or "AI connection is not ready. Retry connection.",
             )
+
+    def _on_runtime_connection_status(self, status: ConnectionStatus) -> None:
+        """Keep open conversations aligned with a newly saved Codex setup."""
+
+        for key in tuple(self._sessions):
+            self._on_connection_status(key, status)
 
     def _render_for_session(self, key: str, **kwargs) -> None:
         (

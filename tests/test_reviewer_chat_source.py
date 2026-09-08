@@ -38,6 +38,12 @@ class ReviewerChatSourceTests(unittest.TestCase):
         self.assertIn("def _on_profiles_changed", self.source)
         self.assertIn("self._render()", self.source)
 
+    def test_open_chats_subscribe_to_runtime_connection_changes(self) -> None:
+        self.assertIn("get_runtime().add_status_listener", self.source)
+        self.assertIn("def _on_runtime_connection_status", self.source)
+        self.assertIn("for key in tuple(self._sessions)", self.source)
+        self.assertIn("self._on_connection_status(key, status)", self.source)
+
     def test_preset_actions_render_a_safe_title_instead_of_the_instruction(
         self,
     ) -> None:
