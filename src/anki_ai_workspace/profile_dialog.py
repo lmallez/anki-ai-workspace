@@ -281,6 +281,7 @@ class ProfileDialog(QDialog):
         self._file_dialog: QFileDialog | None = None
         self._codex_file_dialog: QFileDialog | None = None
         self._verified_executable: str | None = None
+        self._codex_verification_in_progress = False
         self._saved_codex_executable = ""
         self._assignment_dialog: QDialog | None = None
         self._deck_rows: dict[str, tuple[QComboBox, QLabel, DeckReference]] = {}
@@ -718,32 +719,66 @@ class ProfileDialog(QDialog):
         self.save_codex_button.setEnabled(executable == self._saved_codex_executable)
         self.codex_status.setText("Select an executable, then verify it.")
 
-    def _verify_codex(self) -> bool:
+    def _verify_codex(self, *, save_after: bool = False) -> None:
+        if self._codex_verification_in_progress:
+            return
         executable = self.codex_executable.text().strip()
         if not executable:
             self.codex_status.setText("Choose a Codex executable first.")
-            return False
-        result = CodexClient(executable).verify_executable()
+            return
+        self._codex_verification_in_progress = True
+        self.codex_executable.setReadOnly(True)
+        self.browse_codex_button.setEnabled(False)
+        self.verify_codex_button.setEnabled(False)
+        self.save_codex_button.setEnabled(False)
+        self.codex_status.setText("Verifying Codex…")
+        mw.taskman.run_in_background(
+            lambda: CodexClient(executable).verify_executable(),
+            on_done=lambda future, current=executable: self._finish_codex_verification(
+                future, current, save_after
+            ),
+            uses_collection=False,
+        )
+
+    def _finish_codex_verification(
+        self, future, executable: str, save_after: bool
+    ) -> None:
+        self._codex_verification_in_progress = False
+        self.codex_executable.setReadOnly(False)
+        self.browse_codex_button.setEnabled(True)
+        self.verify_codex_button.setEnabled(True)
+        try:
+            result = future.result()
+        except Exception:
+            self._verified_executable = None
+            self.save_codex_button.setEnabled(False)
+            self.codex_status.setText("Codex could not be verified.")
+            return
+        if executable != self.codex_executable.text().strip():
+            self._verified_executable = None
+            self.save_codex_button.setEnabled(
+                self.codex_executable.text().strip() == self._saved_codex_executable
+            )
+            self.codex_status.setText("Select an executable, then verify it.")
+            return
         if not result.succeeded:
             self._verified_executable = None
             self.save_codex_button.setEnabled(False)
             self.codex_status.setText(
                 result.error_message or "Codex could not be verified."
             )
-            return False
+            return
         self._verified_executable = executable
         self.save_codex_button.setEnabled(True)
         self.codex_status.setText(result.text or "Codex executable verified.")
-        return True
+        if save_after:
+            self._save_codex()
 
     def _save_codex(self) -> None:
         executable = self.codex_executable.text().strip()
         connection_changed = executable != self._saved_codex_executable
-        if (
-            connection_changed
-            and executable != self._verified_executable
-            and not self._verify_codex()
-        ):
+        if connection_changed and executable != self._verified_executable:
+            self._verify_codex(save_after=True)
             return
         config = mw.addonManager.getConfig("anki_ai_workspace") or {}
         config["codex_executable"] = executable

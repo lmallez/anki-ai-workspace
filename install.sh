@@ -48,6 +48,8 @@ fi
 
 TARGET_DIR="$ADDONS_DIR/$PACKAGE_NAME"
 
+"$REPO_ROOT/build.sh" "$VERSION_VALUE"
+
 if [[ "$CLEAN_CONFIG" == true && -f "$TARGET_DIR/meta.json" ]]; then
   echo "Resetting AI Workspace settings to their packaged defaults"
   python3 - "$TARGET_DIR/meta.json" <<'PY'
@@ -65,7 +67,6 @@ path.write_text(
 PY
 fi
 
-"$REPO_ROOT/build.sh" "$VERSION_VALUE"
 echo "Installing add-on into $TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 unzip -oq "$ARCHIVE_PATH" -d "$INSTALL_DIR"

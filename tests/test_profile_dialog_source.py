@@ -111,6 +111,11 @@ class ProfileDialogSourceTests(unittest.TestCase):
             'self.save_codex_button = QPushButton("Save settings")', self.source
         )
         self.assertIn("CodexClient(executable).verify_executable()", self.source)
+        self.assertIn("mw.taskman.run_in_background(", self.source)
+        self.assertIn("uses_collection=False", self.source)
+        self.assertIn("def _finish_codex_verification", self.source)
+        self.assertIn("future.result()", self.source)
+        self.assertIn("self._verify_codex(save_after=True)", self.source)
         self.assertIn('config["codex_executable"] = executable', self.source)
         self.assertIn("get_runtime().reset_and_check_connection()", self.source)
 
