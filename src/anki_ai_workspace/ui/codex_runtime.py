@@ -42,6 +42,14 @@ class AnkiCodexRuntime:
         self._queue = ChatRequestCoordinator()
         self._status = ConnectionStatus(ConnectionState.UNCHECKED)
         self._connection_listeners: list[Callable[[ConnectionStatus], None]] = []
+        self._status_listeners: list[Callable[[ConnectionStatus], None]] = []
+        self._connection_generation = 0
+
+    def add_status_listener(self, listener: Callable[[ConnectionStatus], None]) -> None:
+        """Receive every connection state change for the lifetime of the runtime."""
+
+        if listener not in self._status_listeners:
+            self._status_listeners.append(listener)
 
     def ensure_ready(self, listener: Callable[[ConnectionStatus], None]) -> None:
         logger().info("connection readiness requested state=%s", self._status.state)
@@ -59,6 +67,26 @@ class AnkiCodexRuntime:
             listener(self._status)
             return
         self._start_connection_check()
+
+    def reset_and_check_connection(
+        self, listener: Callable[[ConnectionStatus], None] | None = None
+    ) -> None:
+        """Discard cached readiness after the configured executable changes."""
+
+        if listener is not None:
+            self._connection_listeners.append(listener)
+        self._status = ConnectionStatus(ConnectionState.UNCHECKED)
+        self._start_connection_check()
+
+    def adopt_verified_connection(self, result: CodexResult) -> None:
+        """Publish a newly saved, already verified Codex connection."""
+
+        if not result.succeeded:
+            raise ValueError("A verified Codex result is required.")
+        self._connection_generation += 1
+        self._status = ConnectionStatus(ConnectionState.READY, result)
+        self._notify_connection_listeners()
+        self._notify_status_listeners()
 
     def submit_chat(
         self,
@@ -101,21 +129,29 @@ class AnkiCodexRuntime:
 
     def _start_connection_check(self) -> None:
         logger().info("connection check queued")
+        self._connection_generation += 1
+        generation = self._connection_generation
         self._status = ConnectionStatus(ConnectionState.CHECKING)
         self._notify_check_started()
         client = self._client()
         _handle, request = self._queue.submit(
             lambda _cancelled: client.check_connection(),
             on_started=lambda _handle: None,
-            on_finished=self._finish_connection_check,
+            on_finished=lambda handle, result, current=generation: self._finish_connection_check(
+                handle, result, current
+            ),
         )
         if request is not None:
             self._start_request(request)
 
     def _finish_connection_check(
-        self, handle: RequestHandle, result: CodexResult
+        self, handle: RequestHandle, result: CodexResult, generation: int
     ) -> None:
         next_request = self._queue.complete(handle)
+        if generation != self._connection_generation:
+            if next_request is not None:
+                self._start_request(next_request)
+            return
         state = ConnectionState.READY
         if not result.succeeded:
             if result.error_kind in {
@@ -131,6 +167,7 @@ class AnkiCodexRuntime:
             "connection check finished state=%s error_kind=%s", state, result.error_kind
         )
         self._notify_connection_listeners()
+        self._notify_status_listeners()
         if next_request is not None:
             self._start_request(next_request)
 
@@ -179,12 +216,17 @@ class AnkiCodexRuntime:
     def _notify_check_started(self) -> None:
         for listener in self._connection_listeners:
             listener(self._status)
+        self._notify_status_listeners()
+
+    def _notify_status_listeners(self) -> None:
+        for listener in tuple(self._status_listeners):
+            listener(self._status)
 
     @staticmethod
     def _client() -> CodexClient:
         config = mw.addonManager.getConfig("anki_ai_workspace") or {}
         return CodexClient(
-            config.get("codex_executable", "codex"),
+            str(config.get("codex_executable") or ""),
             timeout_seconds=config.get("codex_timeout_seconds", 90),
             preset_reasoning_effort=config.get(
                 "preset_reasoning_effort", DEFAULT_PRESET_REASONING_EFFORT

@@ -15,9 +15,13 @@ from anki_ai_workspace.codex_client import (
     CodexErrorKind,
     RequestKind,
     build_prompt,
+    find_codex_executable,
     normalize_model_verbosity,
     normalize_reasoning_effort,
     prepare_prompt,
+    _codex_environment,
+    _process_start_options,
+    _stop_process,
 )
 
 
@@ -309,7 +313,7 @@ class CodexClientTests(unittest.TestCase):
             calls.append({"args": args, "kwargs": kwargs})
             if args[0][-1] == "--version":
                 return subprocess.CompletedProcess(
-                    args[0], 0, stdout="codex 1.0", stderr=""
+                    args[0], 0, stdout="codex-cli 1.0", stderr=""
                 )
             return subprocess.CompletedProcess(args[0], 0, stdout="OK", stderr="")
 
@@ -336,6 +340,77 @@ class CodexClientTests(unittest.TestCase):
             processes[0].communicate_calls[0][0], 'Reply exactly with "OK".'
         )
 
+    def test_verify_executable_accepts_a_codex_cli_version(self) -> None:
+        completed = subprocess.CompletedProcess(
+            ["codex", "--version"], 0, stdout="codex-cli 0.149.1\n", stderr=""
+        )
+        with patch(
+            "anki_ai_workspace.codex_client.subprocess.run", return_value=completed
+        ):
+            result = CodexClient("codex").verify_executable()
+
+        self.assertTrue(result.succeeded)
+        self.assertEqual(result.text, "codex-cli 0.149.1")
+        self.assertEqual(result.diagnostic.codex_version, "codex-cli 0.149.1")
+
+    def test_verify_executable_rejects_a_generic_version_command(self) -> None:
+        completed = subprocess.CompletedProcess(
+            ["other-tool", "--version"], 0, stdout="other-tool 1.0\n", stderr=""
+        )
+        with patch(
+            "anki_ai_workspace.codex_client.subprocess.run", return_value=completed
+        ):
+            result = CodexClient("other-tool").verify_executable()
+
+        self.assertEqual(result.error_kind, CodexErrorKind.EXECUTABLE_BROKEN)
+        self.assertEqual(
+            result.error_message, "The configured executable is not the Codex CLI."
+        )
+        self.assertEqual(result.diagnostic.codex_version, "other-tool 1.0")
+
+    def test_verify_executable_rejects_an_ambiguous_codex_reference(self) -> None:
+        completed = subprocess.CompletedProcess(
+            ["other-tool", "--version"], 0, stdout="not Codex\n", stderr=""
+        )
+        with patch(
+            "anki_ai_workspace.codex_client.subprocess.run", return_value=completed
+        ):
+            result = CodexClient("other-tool").verify_executable()
+
+        self.assertEqual(result.error_kind, CodexErrorKind.EXECUTABLE_BROKEN)
+
+    def test_find_codex_executable_uses_shutil_which_on_windows(self) -> None:
+        with patch.dict(os.environ, {"PATH": "windows-path"}, clear=False):
+            with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+                with patch(
+                    "anki_ai_workspace.codex_client.shutil.which",
+                    return_value="C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd",
+                ) as which:
+                    executable = find_codex_executable()
+
+        self.assertEqual(executable, "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd")
+        self.assertEqual(which.call_args.args[0], "codex")
+        self.assertEqual(which.call_args.kwargs["path"], "windows-path")
+
+    def test_find_codex_executable_uses_augmented_path_on_posix(self) -> None:
+        with patch("anki_ai_workspace.codex_client.os.name", "posix"):
+            with patch(
+                "anki_ai_workspace.codex_client.shutil.which",
+                return_value="/usr/local/bin/codex",
+            ) as which:
+                executable = find_codex_executable()
+
+        self.assertEqual(executable, "/usr/local/bin/codex")
+        self.assertEqual(which.call_args.args[0], "codex")
+        self.assertIn("/opt/homebrew/bin", which.call_args.kwargs["path"])
+
+    def test_find_codex_executable_handles_lookup_failures(self) -> None:
+        with patch(
+            "anki_ai_workspace.codex_client.shutil.which",
+            side_effect=OSError,
+        ):
+            self.assertIsNone(find_codex_executable())
+
     def test_api_key_environment_variables_are_not_forwarded(self) -> None:
         client = CodexClient("/custom/bin/codex")
         observed_environment: dict[str, str] = {}
@@ -357,6 +432,105 @@ class CodexClientTests(unittest.TestCase):
         self.assertNotIn("OPENAI_API_KEY", observed_environment)
         self.assertNotIn("CODEX_API_KEY", observed_environment)
         self.assertTrue(observed_environment["PATH"].startswith("/custom/bin:"))
+
+    def test_bare_codex_uses_lookup_path_without_api_keys_or_current_directory(
+        self,
+    ) -> None:
+        environment = {}
+        with patch.dict(
+            os.environ,
+            {
+                "PATH": "/custom/path",
+                "OPENAI_API_KEY": "secret",
+                "CODEX_API_KEY": "secret",
+            },
+            clear=False,
+        ):
+            environment = _codex_environment("codex")
+
+        self.assertNotIn("OPENAI_API_KEY", environment)
+        self.assertNotIn("CODEX_API_KEY", environment)
+        self.assertTrue(environment["PATH"].startswith("/opt/homebrew/bin:"))
+        self.assertIn("/custom/path", environment["PATH"])
+        self.assertNotIn(".:", environment["PATH"])
+
+    def test_windows_process_uses_a_windows_process_group(self) -> None:
+        with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+            options = _process_start_options()
+
+        self.assertNotIn("start_new_session", options)
+        self.assertIn("creationflags", options)
+
+    def test_windows_path_uses_the_platform_separator(self) -> None:
+        with patch("anki_ai_workspace.codex_client.os.pathsep", ";"):
+            environment = _codex_environment("/custom/codex")
+
+        self.assertTrue(environment["PATH"].startswith("/custom;"))
+
+    def test_windows_cancellation_terminates_only_the_codex_process_tree(self) -> None:
+        class RunningProcess(FakeProcess):
+            def __init__(self):
+                super().__init__(["codex"], returncode=None)
+                self.pid = 42
+                self.terminated = False
+
+            def terminate(self):
+                self.terminated = True
+                self.returncode = 1
+
+        process = RunningProcess()
+        with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+            with patch("anki_ai_workspace.codex_client.subprocess.run") as run:
+                run.return_value = subprocess.CompletedProcess(["taskkill"], 0)
+                _stop_process(process)
+
+        self.assertEqual(run.call_args.args[0], ["taskkill", "/PID", "42", "/T", "/F"])
+        self.assertFalse(process.terminated)
+
+    def test_windows_cancellation_falls_back_to_direct_termination(self) -> None:
+        class RunningProcess(FakeProcess):
+            def __init__(self):
+                super().__init__(["codex"], returncode=None)
+                self.pid = 42
+                self.terminated = False
+
+            def terminate(self):
+                self.terminated = True
+                self.returncode = 1
+
+        process = RunningProcess()
+        with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+            with patch(
+                "anki_ai_workspace.codex_client.subprocess.run",
+                side_effect=OSError,
+            ):
+                _stop_process(process)
+
+        self.assertTrue(process.terminated)
+
+    def test_failed_windows_tree_termination_falls_back_to_direct_termination(
+        self,
+    ) -> None:
+        class RunningProcess(FakeProcess):
+            def __init__(self):
+                super().__init__(["codex"], returncode=None)
+                self.pid = 42
+                self.terminated = False
+
+            def terminate(self):
+                self.terminated = True
+                self.returncode = 1
+
+        process = RunningProcess()
+        completed = subprocess.CompletedProcess(["taskkill"], 1)
+        with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+            with patch(
+                "anki_ai_workspace.codex_client.subprocess.run",
+                return_value=completed,
+            ):
+                _stop_process(process)
+
+        self.assertTrue(process.terminated)
 
     def test_copyable_diagnostic_never_contains_request_content(self) -> None:
         diagnostic = CodexDiagnostic(

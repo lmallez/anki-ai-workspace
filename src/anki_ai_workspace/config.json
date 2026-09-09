@@ -1,5 +1,5 @@
 {
-  "codex_executable": "codex",
+  "codex_setup_prompt_dismissed": false,
   "codex_timeout_seconds": 90,
   "preset_reasoning_effort": "low",
   "custom_reasoning_effort": "medium",

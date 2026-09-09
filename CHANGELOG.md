@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added guided Codex setup, connection verification, and reply preferences.
+- Improved connection recovery, diagnostics, and cross-platform Codex support.
+- Added `./install.sh --clean <version>` to reset add-on settings safely.
 - Added optional profile-action shortcuts that run directly from review cards.
 - Refined card shortcuts into a compact dark toolbar and kept profile management
   available from the action menu even when a profile is assigned.

@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from enum import Enum
 import os
 from pathlib import Path
+import re
 import signal
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -25,6 +27,9 @@ DEFAULT_CUSTOM_REASONING_EFFORT = "medium"
 DEFAULT_MODEL_VERBOSITY = "low"
 VALID_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high", "xhigh"})
 VALID_MODEL_VERBOSITIES = frozenset({"low", "medium", "high"})
+CODEX_VERSION_MARKER = re.compile(
+    r"^codex-cli\s+\d+(?:\.\d+)+(?:[-+][0-9A-Za-z.-]+)?$", re.IGNORECASE
+)
 
 
 class RequestKind(str, Enum):
@@ -103,6 +108,15 @@ class CodexResult:
         return self.error_kind is None and self.text is not None
 
 
+def find_codex_executable() -> str | None:
+    """Return the first Codex executable found on the current PATH."""
+
+    try:
+        return shutil.which("codex", path=_codex_lookup_environment().get("PATH"))
+    except OSError:
+        return None
+
+
 class CodexClient:
     """Small, stateless bridge to the user's locally authenticated Codex CLI."""
 
@@ -133,7 +147,7 @@ class CodexClient:
         """Verify the executable and saved CLI authentication with a tiny request."""
 
         logger().info("connection check started executable=%s", self._executable)
-        version_result = self._run_version()
+        version_result = self.verify_executable()
         if not version_result.succeeded:
             logger().info(
                 "connection version check failed kind=%s", version_result.error_kind
@@ -160,6 +174,23 @@ class CodexClient:
                 stage="authentication",
                 executable=self._executable,
                 codex_version=version_result.text,
+            ),
+        )
+
+    def verify_executable(self) -> CodexResult:
+        """Verify that the configured command starts and identifies itself."""
+
+        result = self._run_version()
+        if not result.succeeded:
+            return result
+        version = result.text or ""
+        if CODEX_VERSION_MARKER.search(version):
+            return result
+        return CodexResult(
+            error_kind=CodexErrorKind.EXECUTABLE_BROKEN,
+            error_message="The configured executable is not the Codex CLI.",
+            diagnostic=CodexDiagnostic(
+                "startup", self._executable, codex_version=version
             ),
         )
 
@@ -311,7 +342,7 @@ class CodexClient:
                     text=True,
                     cwd=working_dir,
                     env=_codex_environment(self._executable),
-                    start_new_session=True,
+                    **_process_start_options(),
                 )
                 logger().info(
                     "codex process started stage=%s pid=%s",
@@ -442,18 +473,55 @@ def _stop_process(process: subprocess.Popen[str]) -> None:
 
     if process.poll() is not None:
         return
+    if os.name == "nt":
+        _stop_windows_process_tree(process)
+    else:
+        _stop_posix_process_group(process)
+    try:
+        process.communicate(timeout=2)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            process.kill()
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (AttributeError, OSError):
+                process.kill()
+        process.communicate()
+
+
+def _process_start_options() -> dict[str, int | bool]:
+    """Return subprocess options that isolate Codex on the current platform."""
+
+    if os.name == "nt":
+        return {
+            "creationflags": int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+        }
+    return {"start_new_session": True}
+
+
+def _stop_posix_process_group(process: subprocess.Popen[str]) -> None:
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except (AttributeError, OSError):
         process.terminate()
+
+
+def _stop_windows_process_tree(process: subprocess.Popen[str]) -> None:
+    """Terminate only Codex and its descendants on Windows."""
+
     try:
-        process.communicate(timeout=2)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except (AttributeError, OSError):
-            process.kill()
-        process.communicate()
+        completed = subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        if completed.returncode != 0:
+            process.terminate()
+    except (OSError, subprocess.TimeoutExpired):
+        process.terminate()
 
 
 def build_prompt(
@@ -624,15 +692,29 @@ def _connection_test_prompt() -> str:
     return 'Reply exactly with "OK".'
 
 
-def _codex_environment(executable: str) -> dict[str, str]:
+def _codex_lookup_environment() -> dict[str, str]:
+    """Return a PATH that also works when Anki starts outside a shell."""
+
     environment = os.environ.copy()
+    if os.name == "nt":
+        return environment
+
+    existing_path = environment.get("PATH", "")
+    search_paths = ("/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", existing_path)
+    environment["PATH"] = os.pathsep.join(path for path in search_paths if path)
+    return environment
+
+
+def _codex_environment(executable: str) -> dict[str, str]:
+    environment = _codex_lookup_environment()
     environment.pop("OPENAI_API_KEY", None)
     environment.pop("CODEX_API_KEY", None)
-    executable_directory = str(Path(executable).expanduser().parent)
-    existing_path = environment.get("PATH", "")
-    environment["PATH"] = ":".join(
-        part for part in (executable_directory, existing_path) if part
-    )
+    executable_directory = Path(executable).expanduser().parent
+    if executable_directory != Path("."):
+        existing_path = environment.get("PATH", "")
+        environment["PATH"] = os.pathsep.join(
+            part for part in (str(executable_directory), existing_path) if part
+        )
     return environment
 
 
@@ -700,7 +782,7 @@ def _error(
         CodexErrorKind.EXECUTABLE_BROKEN: (
             "Codex CLI is incomplete. Run: npm install -g @openai/codex@latest"
         ),
-        CodexErrorKind.AUTH_REQUIRED: ("Codex is not signed in. Run: codex --login"),
+        CodexErrorKind.AUTH_REQUIRED: ("Codex is not signed in. Run: codex"),
         CodexErrorKind.TIMEOUT: "Codex took too long to respond. Please try again.",
         CodexErrorKind.USAGE_LIMIT: (
             "The current Codex usage limit was reached. Wait for it to reset and "

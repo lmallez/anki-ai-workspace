@@ -53,6 +53,19 @@ class ReviewerWindowSourceTests(unittest.TestCase):
         self.assertIn('id="anki-ai-workspace-connection-popover"', self.source)
         self.assertIn("anki-ai-workspace-assistant{align-self:stretch", self.source)
         self.assertIn("sendButton.textContent=pending?'■':'↑'", self.source)
+        self.assertIn('id="anki-ai-workspace-setup"', self.source)
+        self.assertIn("action:'configure_codex'", self.source)
+        self.assertIn("anki-ai-workspace-error-message", self.source)
+        self.assertIn("turn.error", self.source)
+        self.assertIn("Configure Codex", self.source)
+        self.assertIn("Retry connection", self.source)
+        self.assertIn("Copy diagnostic", self.source)
+        self.assertIn("align-self:stretch", self.source)
+        self.assertIn("anki-ai-workspace-error-primary", self.source)
+        self.assertIn("grid-template-columns:minmax(0,1fr)!important", self.source)
+        self.assertIn("width:100%!important", self.source)
+        self.assertIn("container-type:inline-size!important", self.source)
+        self.assertIn("@container (min-width:700px)", self.source)
 
     def test_pending_requests_show_animated_typing_and_keep_the_composer_editable(
         self,
@@ -71,10 +84,16 @@ class ReviewerWindowSourceTests(unittest.TestCase):
         self.assertIn("anki-ai-workspace-action-kind", self.source)
         self.assertIn("kind.textContent='Action'", self.source)
         self.assertIn("title.textContent=turn.text", self.source)
-        self.assertIn("actionState(turn.state)", self.source)
+        self.assertNotIn("actionState(turn.state)", self.source)
+        self.assertNotIn("Could not run", self.source)
+        self.assertNotIn("Queued", self.source)
 
     def test_header_uses_traffic_lights_and_right_aligned_chevron(self) -> None:
         self.assertIn("#anki-ai-workspace-sessions::after", self.source)
+        self.assertIn(
+            "#anki-ai-workspace-sessions{display:block!important;flex:1 1 auto",
+            self.source,
+        )
         self.assertIn("#anki-ai-workspace-close{background:#ff5f57", self.source)
         self.assertIn("#anki-ai-workspace-minimize{background:#febc2e", self.source)
         self.assertNotIn("+'  ▾'", self.source)

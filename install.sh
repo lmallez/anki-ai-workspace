@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -ne 1 || -z "${1:-}" ]]; then
-  echo "Usage: ./install.sh <version>" >&2
+if [[ $# -eq 2 && "${1:-}" == "--clean" && -n "${2:-}" ]]; then
+  CLEAN_CONFIG=true
+  VERSION_VALUE="$2"
+elif [[ $# -eq 1 && -n "${1:-}" ]]; then
+  CLEAN_CONFIG=false
+  VERSION_VALUE="$1"
+else
+  echo "Usage: ./install.sh [--clean] <version>" >&2
   exit 1
 fi
-
-VERSION_VALUE="$1"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SRC_DIR="$REPO_ROOT/src/anki_ai_workspace"
@@ -45,6 +49,24 @@ fi
 TARGET_DIR="$ADDONS_DIR/$PACKAGE_NAME"
 
 "$REPO_ROOT/build.sh" "$VERSION_VALUE"
+
+if [[ "$CLEAN_CONFIG" == true && -f "$TARGET_DIR/meta.json" ]]; then
+  echo "Resetting AI Workspace settings to their packaged defaults"
+  python3 - "$TARGET_DIR/meta.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+metadata = json.loads(path.read_text(encoding="utf-8"))
+metadata.pop("config", None)
+path.write_text(
+    json.dumps(metadata, indent=2, ensure_ascii=False) + "\n",
+    encoding="utf-8",
+)
+PY
+fi
+
 echo "Installing add-on into $TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 unzip -oq "$ARCHIVE_PATH" -d "$INSTALL_DIR"

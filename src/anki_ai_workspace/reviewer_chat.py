@@ -52,6 +52,7 @@ class ReviewerChatController:
         self._sessions: dict[str, ChatSession] = {}
         self._selected_conversation_id: str | None = None
         add_profile_change_listener(self._on_profiles_changed)
+        get_runtime().add_status_listener(self._on_runtime_connection_status)
 
     def _on_profiles_changed(self) -> None:
         """Refresh deck actions and card shortcuts immediately after profile Save."""
@@ -94,6 +95,7 @@ class ReviewerChatController:
             "open_custom": lambda: self.open_card_chat(focus_composer=True),
             "open_deck_general": self.open_deck_general,
             "configure_profiles": self.configure_profiles,
+            "configure_codex": self.configure_codex,
             "sync": self._render,
             "minimize": self.minimize,
             "close_workspace": self.close_workspace,
@@ -123,7 +125,12 @@ class ReviewerChatController:
     def configure_profiles(self) -> None:
         self._menu_open = False
         self._render()
-        show_profile_dialog()
+        show_profile_dialog("profiles")
+
+    def configure_codex(self) -> None:
+        self._menu_open = False
+        self._render()
+        show_profile_dialog("codex")
 
     def open_card_chat(self, *, focus_composer: bool = False) -> None:
         session = self._card_session(create=True)
@@ -370,6 +377,12 @@ class ReviewerChatController:
                 or "AI connection is not ready. Retry connection.",
             )
 
+    def _on_runtime_connection_status(self, status: ConnectionStatus) -> None:
+        """Keep open conversations aligned with a newly saved Codex setup."""
+
+        for key in tuple(self._sessions):
+            self._on_connection_status(key, status)
+
     def _render_for_session(self, key: str, **kwargs) -> None:
         (
             self._render(**kwargs)
@@ -513,7 +526,14 @@ class ReviewerChatController:
                         "role": "user",
                         "text": session.automatic_action_title,
                         "presentation": "action",
-                        "state": "queued",
+                    }
+                )
+            if session.last_connection_result and not session.connection_ready:
+                turns.append(
+                    {
+                        "role": "assistant",
+                        "error": True,
+                        "text": self._connection_error_message(session),
                     }
                 )
             if self._is_busy(session):
@@ -556,6 +576,17 @@ class ReviewerChatController:
         if session.last_connection_result is not None:
             return "unavailable"
         return "checking"
+
+    @staticmethod
+    def _connection_error_message(session: ChatSession) -> str:
+        result = session.last_connection_result
+        if result and result.error_kind in {
+            CodexErrorKind.EXECUTABLE_NOT_FOUND,
+            CodexErrorKind.EXECUTABLE_BROKEN,
+            CodexErrorKind.AUTH_REQUIRED,
+        }:
+            return "Codex is not set up. Configure Codex to use AI Workspace."
+        return (result.error_message if result else None) or "Codex is unavailable."
 
     def _menu_payload(self) -> dict[str, object]:
         profile = self._effective_profile_for_current_card()

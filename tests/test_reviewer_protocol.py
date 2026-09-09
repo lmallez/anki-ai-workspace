@@ -49,3 +49,7 @@ class ReviewerProtocolTests(unittest.TestCase):
             parse_message('anki-ai-workspace:{"action":"save_scroll"}'),
             {"action": "save_scroll"},
         )
+        self.assertEqual(
+            parse_message('anki-ai-workspace:{"action":"configure_codex"}'),
+            {"action": "configure_codex"},
+        )
