@@ -46,6 +46,16 @@ jobs:
       - name: Run tests
         run: make test
 
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    needs:
+      - quality-lint
+      - quality-unit
+    steps:
+      - name: Confirm quality checks
+        run: echo "Lint and unit checks passed."
+
   compatibility:
     name: Compatibility (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
