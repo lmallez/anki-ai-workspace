@@ -46,7 +46,20 @@ jobs:
       - name: Run tests
         run: make test
 
-  compatibility:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    needs:
+      - quality-lint
+      - quality-unit
+    if: ${{ always() }}
+    steps:
+      - name: Confirm quality checks
+        run: |
+          test "${{ needs.quality-lint.result }}" = "success"
+          test "${{ needs.quality-unit.result }}" = "success"
+
+  compatibility-platform:
     name: Compatibility - ${{ matrix.name }}
     runs-on: ${{ matrix.runner }}
     defaults:
@@ -78,3 +91,12 @@ jobs:
           tests.test_codex_client.CodexClientTests.test_connection_check_runs_a_platform_native_codex_subprocess
           tests.test_codex_client.CodexClientTests.test_ask_runs_ephemeral_read_only_command_with_prompt_on_stdin
           -v
+
+  compatibility:
+    name: Compatibility
+    runs-on: ubuntu-latest
+    needs: compatibility-platform
+    if: ${{ always() }}
+    steps:
+      - name: Confirm compatibility checks
+        run: test "${{ needs.compatibility-platform.result }}" = "success"
