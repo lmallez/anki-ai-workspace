@@ -10,7 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  quality:
+  quality-lint:
+    name: Quality - lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -27,8 +28,75 @@ jobs:
       - name: Check formatting
         run: make lint
 
+  quality-unit:
+    name: Quality - unit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
       - name: Compile Python sources
         run: make check
 
       - name: Run tests
         run: make test
+
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    needs:
+      - quality-lint
+      - quality-unit
+    if: ${{ always() }}
+    steps:
+      - name: Confirm quality checks
+        run: |
+          test "${{ needs.quality-lint.result }}" = "success"
+          test "${{ needs.quality-unit.result }}" = "success"
+
+  compatibility-platform:
+    name: Compatibility - ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Ubuntu
+            runner: ubuntu-latest
+          - name: macOS
+            runner: macos-latest
+          - name: Windows
+            runner: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Run Codex bridge smoke test
+        run: >
+          PYTHONPATH=src python -m unittest
+          tests.test_codex_client.CodexClientTests.test_find_codex_executable_discovers_a_platform_native_command
+          tests.test_codex_client.CodexClientTests.test_connection_check_runs_a_platform_native_codex_subprocess
+          tests.test_codex_client.CodexClientTests.test_ask_runs_ephemeral_read_only_command_with_prompt_on_stdin
+          -v
+
+  compatibility:
+    name: Compatibility
+    runs-on: ubuntu-latest
+    needs: compatibility-platform
+    if: ${{ always() }}
+    steps:
+      - name: Confirm compatibility checks
+        run: test "${{ needs.compatibility-platform.result }}" = "success"
