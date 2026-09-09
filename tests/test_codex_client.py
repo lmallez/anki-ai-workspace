@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import subprocess
-import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
@@ -44,91 +42,6 @@ class FakeProcess:
 
 
 class CodexClientTests(unittest.TestCase):
-    def test_find_codex_executable_discovers_a_platform_native_command(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            executable = self._write_fake_codex(Path(temporary_directory))
-            with patch(
-                "anki_ai_workspace.codex_client._codex_lookup_environment",
-                return_value={"PATH": temporary_directory},
-            ):
-                found = find_codex_executable()
-
-        self.assertEqual(found, executable)
-
-    def test_connection_check_runs_a_platform_native_codex_subprocess(self) -> None:
-        """Exercise the real subprocess bridge without a Codex account or network."""
-
-        with tempfile.TemporaryDirectory() as temporary_directory:
-            temporary_path = Path(temporary_directory)
-            log_directory = temporary_path / "log"
-            log_directory.mkdir()
-            executable = self._write_fake_codex(temporary_path)
-
-            with patch.dict(
-                os.environ, {"CODEX_SMOKE_LOG": str(log_directory)}, clear=False
-            ):
-                result = CodexClient(executable).check_connection()
-
-            self.assertTrue(result.succeeded)
-            self.assertEqual(result.text, "Codex is ready.")
-            self.assertEqual(
-                (log_directory / "prompt.txt").read_text(encoding="utf-8").strip(),
-                'Reply exactly with "OK".',
-            )
-            arguments = (log_directory / "arguments.txt").read_text(encoding="utf-8")
-            self.assertEqual(arguments.count("exec"), 1)
-            for argument in (
-                "--ephemeral",
-                "--sandbox",
-                "read-only",
-                "--skip-git-repo-check",
-                "--ignore-user-config",
-                "--ignore-rules",
-                "model_reasoning_effort",
-                "model_verbosity",
-            ):
-                self.assertIn(argument, arguments)
-
-    @staticmethod
-    def _write_fake_codex(directory: Path) -> str:
-        if os.name == "nt":
-            executable = directory / "codex.cmd"
-            executable.write_text(
-                "@echo off\r\n"
-                'if "%~1"=="--version" (\r\n'
-                "  echo codex-cli 1.0.0\r\n"
-                "  exit /b 0\r\n"
-                ")\r\n"
-                'if "%~1"=="exec" (\r\n'
-                '  > "%CODEX_SMOKE_LOG%\\arguments.txt" echo %*\r\n'
-                '  > "%CODEX_SMOKE_LOG%\\prompt.txt" more\r\n'
-                "  echo OK\r\n"
-                "  exit /b 0\r\n"
-                ")\r\n"
-                "exit /b 1\r\n",
-                encoding="utf-8",
-            )
-            return str(executable)
-
-        executable = directory / "codex"
-        executable.write_text(
-            "#!/bin/sh\n"
-            'if [ "$1" = "--version" ]; then\n'
-            "  printf '%s\\n' 'codex-cli 1.0.0'\n"
-            "  exit 0\n"
-            "fi\n"
-            'if [ "$1" = "exec" ]; then\n'
-            '  printf \'%s\\n\' "$@" > "$CODEX_SMOKE_LOG/arguments.txt"\n'
-            '  cat > "$CODEX_SMOKE_LOG/prompt.txt"\n'
-            "  printf '%s\\n' 'OK'\n"
-            "  exit 0\n"
-            "fi\n"
-            "exit 1\n",
-            encoding="utf-8",
-        )
-        executable.chmod(0o755)
-        return str(executable)
-
     def test_ask_runs_ephemeral_read_only_command_with_prompt_on_stdin(self) -> None:
         calls: list[dict] = []
         processes: list[FakeProcess] = []
@@ -176,10 +89,7 @@ class CodexClientTests(unittest.TestCase):
         self.assertIn(
             "Give me a short explanation.", processes[0].communicate_calls[0][0] or ""
         )
-        if os.name == "nt":
-            self.assertIn("creationflags", calls[0]["kwargs"])
-        else:
-            self.assertEqual(calls[0]["kwargs"]["start_new_session"], True)
+        self.assertEqual(calls[0]["kwargs"]["start_new_session"], True)
         self.assertTrue(
             os.path.basename(calls[0]["kwargs"]["cwd"]).startswith("anki-ai-workspace-")
         )

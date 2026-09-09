@@ -56,16 +56,3 @@ jobs:
           files: dist/anki_ai_workspace.ankiaddon
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload to AnkiWeb
-        if: vars.PUBLISH_TO_ANKIWEB == 'true'
-        uses: lmallez/anki-addon-publish-action@v0.1.1
-        with:
-          file: dist/anki_ai_workspace.ankiaddon
-          anki-user: ${{ secrets.ANKI_USER }}
-          anki-password: ${{ secrets.ANKI_PASSWORD }}
-          id: ${{ vars.ANKI_ADDON_ID }}
-          name: "[BETA] Anki AI Workspace"
-          support-page: https://github.com/${{ github.repository }}
-          tags: productivity
-          description-file: src/anki_ai_workspace/README.md

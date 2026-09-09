@@ -71,11 +71,9 @@ A useful pull request description includes:
 Pushing a version tag runs formatting, compilation, and unit tests before
 creating a GitHub Release with the `.ankiaddon` archive.
 
-Set the repository variable `PUBLISH_TO_ANKIWEB` to `true` to also upload a
-tagged release to AnkiWeb. This requires the `ANKI_USER` and `ANKI_PASSWORD`
-repository secrets and the `ANKI_ADDON_ID` repository variable. When the
-variable is unset or any value other than `true`, publishing to AnkiWeb is
-skipped.
+Publishing to AnkiWeb remains a separate manual step so the appropriate AnkiWeb
+account can be used without storing personal publishing credentials in this
+repository.
 
 ## Style
 
