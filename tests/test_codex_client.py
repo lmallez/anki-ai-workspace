@@ -53,7 +53,10 @@ class CodexClientTests(unittest.TestCase):
             ):
                 found = find_codex_executable()
 
-        self.assertEqual(found, executable)
+        self.assertEqual(
+            os.path.normcase(found or ""),
+            os.path.normcase(executable),
+        )
 
     def test_connection_check_runs_a_platform_native_codex_subprocess(self) -> None:
         """Exercise the real subprocess bridge without a Codex account or network."""
