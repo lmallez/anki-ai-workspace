@@ -379,43 +379,34 @@ class CodexClientTests(unittest.TestCase):
 
         self.assertEqual(result.error_kind, CodexErrorKind.EXECUTABLE_BROKEN)
 
-    def test_find_codex_executable_uses_where_on_windows(self) -> None:
-        completed = subprocess.CompletedProcess(
-            ["where", "codex"],
-            0,
-            stdout="C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd\n"
-            "C:\\Users\\me\\AppData\\Roaming\\npm\\codex\n",
-            stderr="",
-        )
-        with patch("anki_ai_workspace.codex_client.os.name", "nt"):
-            with patch(
-                "anki_ai_workspace.codex_client.subprocess.run", return_value=completed
-            ) as run:
-                executable = find_codex_executable()
+    def test_find_codex_executable_uses_shutil_which_on_windows(self) -> None:
+        with patch.dict(os.environ, {"PATH": "windows-path"}, clear=False):
+            with patch("anki_ai_workspace.codex_client.os.name", "nt"):
+                with patch(
+                    "anki_ai_workspace.codex_client.shutil.which",
+                    return_value="C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd",
+                ) as which:
+                    executable = find_codex_executable()
 
         self.assertEqual(executable, "C:\\Users\\me\\AppData\\Roaming\\npm\\codex.cmd")
-        self.assertEqual(run.call_args.args[0], ["where", "codex"])
+        self.assertEqual(which.call_args.args[0], "codex")
+        self.assertEqual(which.call_args.kwargs["path"], "windows-path")
 
-    def test_find_codex_executable_uses_which_on_posix(self) -> None:
+    def test_find_codex_executable_uses_augmented_path_on_posix(self) -> None:
         with patch("anki_ai_workspace.codex_client.os.name", "posix"):
             with patch(
-                "anki_ai_workspace.codex_client.subprocess.run",
-                return_value=subprocess.CompletedProcess(
-                    ["which", "codex"],
-                    0,
-                    stdout="\n/usr/local/bin/codex\n",
-                    stderr="",
-                ),
-            ) as run:
+                "anki_ai_workspace.codex_client.shutil.which",
+                return_value="/usr/local/bin/codex",
+            ) as which:
                 executable = find_codex_executable()
 
         self.assertEqual(executable, "/usr/local/bin/codex")
-        self.assertEqual(run.call_args.args[0], ["which", "codex"])
-        self.assertIn("/opt/homebrew/bin", run.call_args.kwargs["env"]["PATH"])
+        self.assertEqual(which.call_args.args[0], "codex")
+        self.assertIn("/opt/homebrew/bin", which.call_args.kwargs["path"])
 
     def test_find_codex_executable_handles_lookup_failures(self) -> None:
         with patch(
-            "anki_ai_workspace.codex_client.subprocess.run",
+            "anki_ai_workspace.codex_client.shutil.which",
             side_effect=OSError,
         ):
             self.assertIsNone(find_codex_executable())
@@ -441,6 +432,27 @@ class CodexClientTests(unittest.TestCase):
         self.assertNotIn("OPENAI_API_KEY", observed_environment)
         self.assertNotIn("CODEX_API_KEY", observed_environment)
         self.assertTrue(observed_environment["PATH"].startswith("/custom/bin:"))
+
+    def test_bare_codex_uses_lookup_path_without_api_keys_or_current_directory(
+        self,
+    ) -> None:
+        environment = {}
+        with patch.dict(
+            os.environ,
+            {
+                "PATH": "/custom/path",
+                "OPENAI_API_KEY": "secret",
+                "CODEX_API_KEY": "secret",
+            },
+            clear=False,
+        ):
+            environment = _codex_environment("codex")
+
+        self.assertNotIn("OPENAI_API_KEY", environment)
+        self.assertNotIn("CODEX_API_KEY", environment)
+        self.assertTrue(environment["PATH"].startswith("/opt/homebrew/bin:"))
+        self.assertIn("/custom/path", environment["PATH"])
+        self.assertNotIn(".:", environment["PATH"])
 
     def test_windows_process_uses_a_windows_process_group(self) -> None:
         with patch("anki_ai_workspace.codex_client.os.name", "nt"):

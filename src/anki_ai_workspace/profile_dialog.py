@@ -828,7 +828,10 @@ class ProfileDialog(QDialog):
         mw.addonManager.writeConfig("anki_ai_workspace", config)
         self._saved_codex_executable = executable
         self.save_codex_button.setEnabled(True)
-        if connection_changed:
+        if (
+            executable == self._verified_executable
+            and self._verified_connection is not None
+        ):
             get_runtime().adopt_verified_connection(self._verified_connection)
             self.codex_status.setText("Saved. Codex is ready.")
             return

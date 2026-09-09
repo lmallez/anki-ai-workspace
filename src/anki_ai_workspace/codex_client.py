@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -110,23 +111,10 @@ class CodexResult:
 def find_codex_executable() -> str | None:
     """Return the first Codex executable found on the current PATH."""
 
-    command = ["where", "codex"] if os.name == "nt" else ["which", "codex"]
     try:
-        completed = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=VERSION_TIMEOUT_SECONDS,
-            env=_codex_lookup_environment(),
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired):
+        return shutil.which("codex", path=_codex_lookup_environment().get("PATH"))
+    except OSError:
         return None
-    if completed.returncode != 0:
-        return None
-    return next(
-        (line.strip() for line in completed.stdout.splitlines() if line.strip()), None
-    )
 
 
 class CodexClient:
@@ -718,14 +706,15 @@ def _codex_lookup_environment() -> dict[str, str]:
 
 
 def _codex_environment(executable: str) -> dict[str, str]:
-    environment = os.environ.copy()
+    environment = _codex_lookup_environment()
     environment.pop("OPENAI_API_KEY", None)
     environment.pop("CODEX_API_KEY", None)
-    executable_directory = str(Path(executable).expanduser().parent)
-    existing_path = environment.get("PATH", "")
-    environment["PATH"] = os.pathsep.join(
-        part for part in (executable_directory, existing_path) if part
-    )
+    executable_directory = Path(executable).expanduser().parent
+    if executable_directory != Path("."):
+        existing_path = environment.get("PATH", "")
+        environment["PATH"] = os.pathsep.join(
+            part for part in (str(executable_directory), existing_path) if part
+        )
     return environment
 
 

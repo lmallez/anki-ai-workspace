@@ -124,6 +124,14 @@ class ProfileDialogSourceTests(unittest.TestCase):
         self.assertIn("get_runtime().adopt_verified_connection", self.source)
         self.assertNotIn("get_runtime().reset_and_check_connection(", self.source)
 
+    def test_saved_verified_connection_is_adopted_even_when_path_is_unchanged(
+        self,
+    ) -> None:
+        save = self.source.index("def _save_codex")
+        section = self.source[save : self.source.index("def _populate_decks", save)]
+        self.assertIn("executable == self._verified_executable", section)
+        self.assertIn("get_runtime().adopt_verified_connection", section)
+
     def test_codex_tab_hides_setup_instructions_behind_help_button(self) -> None:
         self.assertIn('self.codex_help_button = QPushButton("?")', self.source)
         self.assertIn(
